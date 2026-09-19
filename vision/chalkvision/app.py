@@ -15,6 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import recapture, words
+from .reading import BoardReading
 from .reuse import ReuseIndex, pdq_hex
 
 log = logging.getLogger("chalkvision")
@@ -83,10 +84,10 @@ def _json_list(raw: str, field: str) -> list:
     return v
 
 
-def _mock_reading(expected: list[str], prior_flat: list[str]) -> tuple[set[str], int, bool, str]:
-    """Demo stand-in: sees exactly the words it was asked about."""
+def _mock_reading(expected: list[str], prior_flat: list[str]) -> BoardReading:
+    """Demo stand-in: reads exactly the words it was told to expect."""
     people = int(os.environ.get("CHALK_MOCK_HEADCOUNT", 7))
-    return set(expected) | set(prior_flat), people, False, "mock engine"
+    return BoardReading(board_text=[*expected, *prior_flat], people=people, looks_like_screen=False)
 
 
 @app.post("/verify")
@@ -120,21 +121,23 @@ async def verify(
     failures = []
     for name in chain:
         try:
-            reading = _reader(name)(img, candidates)
+            reading = _reader(name)(img)
             engine = name
             break
         except Exception as e:  # noqa: BLE001 - any model/transport failure; try the next engine
             log.warning("%s engine failed: %s", name, e)
             failures.append(f"{name}: {e}")
-    if reading is not None:
-        seen = {words.norm(w) for w in reading.words_on_board}
-        people, screen_hint, notes = reading.people, reading.looks_like_screen, reading.notes
-    else:
+    if reading is None:
         if chain and os.environ.get("CHALK_VISION_FALLBACK", "").lower() != "mock":
             raise HTTPException(502, f"vision model failed: {'; '.join(failures)}")
         if chain:
             engine = "mock-fallback"
-        seen, people, screen_hint, notes = _mock_reading(exp, prior_flat)
+        reading = _mock_reading(exp, prior_flat)
+
+    # The model transcribes the board; we decide which candidate words that transcript contains.
+    transcript = [words.norm(w) for w in reading.board_text]
+    seen = words.find_words(candidates, words.transcript_tokens(transcript))
+    people, screen_hint = reading.people, reading.looks_like_screen
 
     words_found = [w in seen for w in exp]
     prior_found = [[w in seen for w in link] for link in pri]
@@ -157,8 +160,6 @@ async def verify(
     reasons.append(f"{people} people")
     reasons.append("Looks like a photo of a screen" if is_recapture else "Not a photo of a screen")
     reasons.append("Same photo seen before" if reuse["is_reuse"] else "New photo")
-    if notes:
-        reasons.append(notes)
 
     return {
         "words_ok": words_ok,
@@ -170,6 +171,7 @@ async def verify(
         "is_recapture": bool(is_recapture),
         "recapture_score": round(score, 3),
         "reuse": reuse,
+        "board_text": transcript,
         "reasons": reasons,
         "engine": engine,
         "ms": int((time.monotonic() - t0) * 1000),

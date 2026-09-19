@@ -6,7 +6,7 @@ import os
 import anthropic
 from PIL import Image
 
-from .reading import BoardReading, jpeg_b64, prompt
+from .reading import PROMPT, BoardReading, jpeg_b64
 
 MODEL = os.environ.get("CHALK_VLM_MODEL", "claude-opus-5")
 MAX_SIDE = 1568
@@ -21,7 +21,7 @@ def client() -> anthropic.Anthropic:
     return _client
 
 
-def read_board(img: Image.Image, candidates: list[str]) -> BoardReading:
+def read_board(img: Image.Image) -> BoardReading:
     response = client().beta.messages.parse(
         model=MODEL,
         max_tokens=4000,
@@ -38,7 +38,7 @@ def read_board(img: Image.Image, candidates: list[str]) -> BoardReading:
                         "type": "image",
                         "source": {"type": "base64", "media_type": "image/jpeg", "data": jpeg_b64(img, MAX_SIDE)},
                     },
-                    {"type": "text", "text": prompt(candidates)},
+                    {"type": "text", "text": PROMPT},
                 ],
             }
         ],

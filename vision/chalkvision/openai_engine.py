@@ -6,7 +6,7 @@ import os
 from openai import OpenAI
 from PIL import Image
 
-from .reading import BoardReading, jpeg_b64, prompt
+from .reading import PROMPT, BoardReading, jpeg_b64
 
 MODEL = os.environ.get("CHALK_OPENAI_MODEL", "gpt-5.5")
 # Reasoning effort for reasoning models; set CHALK_OPENAI_EFFORT="" for models without it.
@@ -23,7 +23,7 @@ def client() -> OpenAI:
     return _client
 
 
-def read_board(img: Image.Image, candidates: list[str]) -> BoardReading:
+def read_board(img: Image.Image) -> BoardReading:
     extra = {"reasoning": {"effort": EFFORT}} if EFFORT else {}
     response = client().responses.parse(
         model=MODEL,
@@ -36,7 +36,7 @@ def read_board(img: Image.Image, candidates: list[str]) -> BoardReading:
                         "image_url": f"data:image/jpeg;base64,{jpeg_b64(img, MAX_SIDE)}",
                         "detail": "high",  # chalk words can be small in a class photo
                     },
-                    {"type": "input_text", "text": prompt(candidates)},
+                    {"type": "input_text", "text": PROMPT},
                 ],
             }
         ],

@@ -1,40 +1,38 @@
-"""The question every vision engine answers, and the shape of its answer."""
+"""The question every vision engine answers, and the shape of its answer.
+
+We ask the model to TRANSCRIBE the board and match the words ourselves. Asking "which of these
+words do you see?" biases the model towards yes: on real photos of busy boards it claimed to see
+words that were not there, including our decoys. Transcribing invents far less.
+"""
 from __future__ import annotations
 
 import base64
 import io
 
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-PROMPT = """This is a photo taken by a teacher in a classroom. Somewhere in it there should be
-a chalkboard or whiteboard with a few words written by hand.
+MAX_WORDS = 12  # also keeps constrained decoding short: long outputs crashed the local runner
 
-Candidate words (the board may show some, all or none of them):
-{candidates}
+PROMPT = """This is a photo taken by a teacher in a classroom. Somewhere in it there may be a
+chalkboard or whiteboard with words written by hand.
 
 Report:
-- words_on_board: every candidate word that is clearly handwritten on the board in this photo.
-  Only use words from the candidate list, spelled exactly as listed. Do not guess words that
-  are hidden, cut off or illegible.
+- board_text: the words you can actually READ on the board, at most 12, one word per entry,
+  spelled exactly as written. Only include words whose letters you can make out. Return an empty
+  list if the board is empty or unreadable, or if there is no board. Never guess from context.
 - people: how many people (students and teachers) are visible.
-- looks_like_screen: true if this is a photo OF a screen, monitor, phone or printed photo
-  rather than a photo of a real room. Signs: a dark bezel or frame around the picture, a
-  tilted rectangle inside the photo, wavy moire or rainbow interference patterns, a visible
-  pixel grid, or screen glare.
-- notes: one short sentence about anything unusual, or an empty string."""
+- looks_like_screen: true if this is a photo OF a screen, monitor, phone or printed photo rather
+  than a photo of a real room. Signs: a dark bezel or frame around the picture, a tilted rectangle
+  inside the photo, wavy moire or rainbow interference patterns, a visible pixel grid, or screen
+  glare."""
 
 
 class BoardReading(BaseModel):
     # No defaults: strict structured outputs (OpenAI) require every field.
-    words_on_board: list[str]
+    board_text: list[str] = Field(max_length=MAX_WORDS)
     people: int
     looks_like_screen: bool
-    notes: str
-
-
-def prompt(candidates: list[str]) -> str:
-    return PROMPT.format(candidates=", ".join(candidates))
 
 
 def jpeg_b64(img: Image.Image, max_side: int) -> str:
@@ -43,3 +41,7 @@ def jpeg_b64(img: Image.Image, max_side: int) -> str:
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=88)
     return base64.standard_b64encode(buf.getvalue()).decode("ascii")
+
+
+def jpeg_bytes(img: Image.Image, max_side: int) -> bytes:
+    return base64.b64decode(jpeg_b64(img, max_side))

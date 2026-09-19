@@ -235,6 +235,11 @@ first. Binary search for the slot. Not found → `SlotNotFound`.
 | `group_id` | string | `"<teacher>:<day>"`; photos in the same group are not compared for reuse |
 | `lang` | string | `en` or `sw` (for decoys) |
 
+The model is asked to TRANSCRIBE the board (`board_text` in the response), and the service decides
+which expected, prior and decoy words that transcript contains: exact match, or a 0.8 similarity
+for words of 5+ letters. Asking a model "which of these words do you see?" made it answer yes to
+words that were not there on real photos, decoys included.
+
 Response `200 application/json`:
 
 ```json
@@ -248,6 +253,7 @@ Response `200 application/json`:
   "is_recapture": false,
   "recapture_score": 0.12,
   "reuse": {"is_reuse": false, "distance": 118, "match_id": null, "exact_duplicate": false},
+  "board_text": ["lion", "cup", "rain"],
   "reasons": ["All 3 words found", "7 people", "Not a photo of a screen", "New photo"],
   "engine": "claude",
   "ms": 3140

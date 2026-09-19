@@ -62,7 +62,7 @@ def verify(client, expected=("lion", "cup", "rain")):
 def fake_readers(monkeypatch, results):
     """results: engine -> BoardReading or Exception."""
     def reader(name):
-        def read(img, candidates):
+        def read(img):
             r = results[name]
             if isinstance(r, Exception):
                 raise r
@@ -77,7 +77,7 @@ def test_falls_back_to_second_provider(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "o")
     fake_readers(monkeypatch, {
         "claude": RuntimeError("overloaded"),
-        "openai": BoardReading(words_on_board=["lion", "cup", "rain"], people=6, looks_like_screen=False, notes=""),
+        "openai": BoardReading(board_text=["lion", "cup", "rain"], people=6, looks_like_screen=False),
     })
     v = verify(TestClient(appmod.app)).json()
     assert v["engine"] == "openai" and v["words_ok"] and v["headcount"] == 6
@@ -94,19 +94,19 @@ def test_all_providers_fail_is_502_unless_mock_fallback(monkeypatch):
     assert verify(client).json()["engine"] == "mock-fallback"
 
 
-def test_decoy_seen_by_openai_fails_words(monkeypatch):
+def test_transcript_drives_the_word_check(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "o")
     captured = {}
 
-    def read(img, candidates):
-        captured["candidates"] = candidates
-        decoy = next(c for c in candidates if c not in ("lion", "cup", "rain"))
-        return BoardReading(words_on_board=["lion", "cup", "rain", decoy], people=5, looks_like_screen=False, notes="")
+    def read(img):
+        captured["called"] = True
+        # The model transcribes a board that also carries a word nobody asked for.
+        return BoardReading(board_text=["lion", "cup", "rain", "zebra"], people=5, looks_like_screen=False)
 
     monkeypatch.setattr(appmod, "_reader", lambda name: read)
     v = verify(TestClient(appmod.app)).json()
-    assert len(captured["candidates"]) == 9  # 3 expected + 6 decoys
-    assert v["engine"] == "openai" and not v["words_ok"] and len(v["decoys_flagged"]) == 1
+    assert captured["called"] and v["engine"] == "openai"
+    assert v["words_found"] == [True, True, True] and v["board_text"] == ["lion", "cup", "rain", "zebra"]
 
 
 def test_ollama_request_shape(monkeypatch):
@@ -121,16 +121,42 @@ def test_ollama_request_shape(monkeypatch):
 
         def json(self):
             return {"message": {"content": json.dumps(
-                {"words_on_board": ["lion"], "people": 4, "looks_like_screen": False, "notes": ""})}}
+                {"board_text": ["lion"], "people": 4, "looks_like_screen": False})}}
 
     def fake_post(url, json, timeout):
         sent.update(url=url, body=json)
         return Resp()
 
     monkeypatch.setattr(ollama_engine.httpx, "post", fake_post)
-    reading = ollama_engine.read_board(synth.classroom(["lion"]), ["lion", "cup"])
-    assert reading.words_on_board == ["lion"] and reading.people == 4
+    reading = ollama_engine.read_board(synth.classroom(["lion"]))
+    assert reading.board_text == ["lion"] and reading.people == 4
     body = sent["body"]
     assert sent["url"].endswith("/api/chat") and body["model"] == "qwen2.5vl:7b" and body["stream"] is False
-    assert body["format"]["required"] == ["words_on_board", "people", "looks_like_screen", "notes"]
-    assert "lion, cup" in body["messages"][0]["content"] and len(body["messages"][0]["images"]) == 1
+    assert body["format"]["required"] == ["board_text", "people", "looks_like_screen"]
+    assert body["options"]["num_predict"] == ollama_engine.NUM_PREDICT
+    assert len(body["messages"][0]["images"]) == 1
+
+
+def test_ollama_retries_once_then_succeeds(monkeypatch):
+    from chalkvision import ollama_engine
+
+    monkeypatch.setenv("CHALK_OLLAMA_MODEL", "qwen2.5vl:7b")
+    calls = {"n": 0}
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"message": {"content": json.dumps(
+                {"board_text": ["lion"], "people": 2, "looks_like_screen": False})}}
+
+    def flaky(url, json, timeout):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("500 Internal Server Error")
+        return Resp()
+
+    monkeypatch.setattr(ollama_engine.httpx, "post", flaky)
+    assert ollama_engine.read_board(synth.classroom(["lion"])).board_text == ["lion"]
+    assert calls["n"] == 2

@@ -69,17 +69,18 @@ def main() -> None:
             candidates, decoys = words.build_candidates(expected, [], hashlib.sha256(buf.getvalue()).digest(), args.lang)
             t0 = time.monotonic()
             try:
-                r = read(img, candidates)
+                r = read(img)
             except Exception as e:  # noqa: BLE001
                 print(f"  {name}: FAILED {e}")
                 continue
             ms = int((time.monotonic() - t0) * 1000)
-            seen = {words.norm(w) for w in r.words_on_board}
+            seen = words.find_words(candidates, words.transcript_tokens([words.norm(w) for w in r.board_text]))
             found = [w for w in expected if w in seen]
             fooled = sorted(d for d in decoys if d in seen)
             verdict = "PASS" if len(found) == len(expected) and not fooled else "FAIL"
             print(f"  {name}: {verdict}  words {len(found)}/{len(expected)}  decoys {fooled or 'none'}"
                   f"  people {r.people}  screen {r.looks_like_screen}  {ms} ms")
+            print(f"     read: {r.board_text}")
 
 
 if __name__ == "__main__":

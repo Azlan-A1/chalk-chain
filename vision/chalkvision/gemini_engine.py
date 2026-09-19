@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 from PIL import Image
 
-from .reading import BoardReading, jpeg_b64, prompt
+from .reading import PROMPT, BoardReading, jpeg_b64
 
 MODEL = os.environ.get("CHALK_GEMINI_MODEL", "gemini-3.8-flash")
 # Gemini 3 thinking level; set CHALK_GEMINI_THINKING="" for models without it.
@@ -29,7 +29,7 @@ def client() -> genai.Client:
     return _client
 
 
-def read_board(img: Image.Image, candidates: list[str]) -> BoardReading:
+def read_board(img: Image.Image) -> BoardReading:
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=BoardReading,
@@ -39,7 +39,7 @@ def read_board(img: Image.Image, candidates: list[str]) -> BoardReading:
         model=MODEL,
         contents=[
             types.Part.from_bytes(data=base64.b64decode(jpeg_b64(img, MAX_SIDE)), mime_type="image/jpeg"),
-            prompt(candidates),
+            PROMPT,
         ],
         config=config,
     )

@@ -5,6 +5,8 @@ import json
 import os
 import pathlib
 import random
+import difflib
+import re
 import unicodedata
 from functools import lru_cache
 
@@ -39,3 +41,30 @@ def build_candidates(
     candidates = list(dict.fromkeys([*expected, *prior_flat, *decoys]))
     rng.shuffle(candidates)
     return candidates, decoys
+
+
+def transcript_tokens(board_text: list[str]) -> set[str]:
+    """Words the model read off the board, split and normalised for matching."""
+    out: set[str] = set()
+    for line in board_text or []:
+        for tok in re.split(r"[^0-9a-z]+", norm(line)):
+            if len(tok) >= 3:
+                out.add(tok)
+    return out
+
+
+FUZZY_RATIO = 0.8
+FUZZY_MIN_LEN = 5  # short words must match exactly: bat/boat, bowl/owl, car/card are too close
+
+
+def find_words(candidates: list[str], tokens: set[str], ratio: float = FUZZY_RATIO) -> set[str]:
+    """Candidates that appear in the transcript, allowing for small misreadings of longer words."""
+    found = set()
+    for word in candidates:
+        if word in tokens:
+            found.add(word)
+        elif len(word) >= FUZZY_MIN_LEN and any(
+            len(t) >= FUZZY_MIN_LEN and difflib.SequenceMatcher(None, word, t).ratio() >= ratio for t in tokens
+        ):
+            found.add(word)
+    return found
