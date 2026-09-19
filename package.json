@@ -1,0 +1,11 @@
+{
+  "name": "chalk-chain",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "engines": { "node": ">=20.18" },
+  "scripts": {
+    "test:shared": "pnpm --filter @chalk/shared test",
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:app": "pnpm --filter app dev"
+  }
+}

@@ -1,0 +1,237 @@
+{
+  "about": "Chalk Chain derivation vectors. See SPEC.md \u00a71. Hex is lowercase.",
+  "domain": "chalk-chain",
+  "cases": [
+    {
+      "teacher": "8a647a589216f31619a9ff0883bc2812b4318a520938e1b5ff9441932efbc5a1",
+      "day": 20715,
+      "day_le": "eb500000",
+      "prev0": "427b0e9b9fd3850246c7055d439eec529cdbc4728a40a9fc9989ba793ffe622a",
+      "links": [
+        {
+          "idx": 0,
+          "slot_hash": "96df30e0aa024a3a1dad4df5061469ec09925b01621e800ce414fca97e940dac",
+          "photo_hash": "8d91a3f65b79c7a66152b747e4aaa6579a8f13bf41f167278fa8d4cb54f44c9c",
+          "prev": "427b0e9b9fd3850246c7055d439eec529cdbc4728a40a9fc9989ba793ffe622a",
+          "seed": "522b1c3cd4da5bc285951b2dd9b9f405228c8a55a2399035d5c68a33c4bece71",
+          "words": [
+            82,
+            43,
+            28
+          ],
+          "words_en": [
+            "eagle",
+            "canoe",
+            "box"
+          ],
+          "words_sw": [
+            "kichwa",
+            "filimbi",
+            "daftari"
+          ],
+          "commit": "c01c3f3181041fb598fcf0c52524123935c950c70f556049552bd2fd52d95dd1"
+        },
+        {
+          "idx": 1,
+          "slot_hash": "67eb27823f36114091ad84b63c8258a95c27815c091795a4158b3e2fea5a8fec",
+          "photo_hash": "dee8bd3486ed91e2867c33bf29c8111d1933f29d4336946681c4a96ad52792e1",
+          "prev": "c01c3f3181041fb598fcf0c52524123935c950c70f556049552bd2fd52d95dd1",
+          "seed": "6a5294a9d44bda418b86699b348a0ebb7c15f58f2789fe7503e7f0ae3f69262e",
+          "words": [
+            106,
+            82,
+            148
+          ],
+          "words_en": [
+            "glass",
+            "eagle",
+            "mask"
+          ],
+          "words_sw": [
+            "kumi",
+            "kichwa",
+            "mtoto"
+          ],
+          "commit": "cfe534be661b2d5f2a9ebaef6fcf937fb030964da86748b18ee3a61f6e6ae5f0"
+        },
+        {
+          "idx": 2,
+          "slot_hash": "2bd32ed8d5378153031d19f88b59ebdbfe15fa09ece92fcd4f2cca34e06a7924",
+          "photo_hash": "fd68522fab87cd0acbba0970805d382db183206a21faa4a5a62b1bbb33ff51b6",
+          "prev": "cfe534be661b2d5f2a9ebaef6fcf937fb030964da86748b18ee3a61f6e6ae5f0",
+          "seed": "0b521cb9a0fc36582e097dd5c669a8e21615b23f76436b8416901b8ce65ace8b",
+          "words": [
+            11,
+            82,
+            28
+          ],
+          "words_en": [
+            "bat",
+            "eagle",
+            "box"
+          ],
+          "words_sw": [
+            "baridi",
+            "kichwa",
+            "daftari"
+          ],
+          "commit": "b5f20b56a657013598abe7aa8e11db8b02b2d9b2c46ccf0770d9d5b3052ac528"
+        }
+      ]
+    },
+    {
+      "teacher": "4415403357195cb14f243f0f9acaf0b2bc1e7eab64724ffda8e22b7d6ef873e8",
+      "day": 20716,
+      "day_le": "ec500000",
+      "prev0": "ac15b5fd580684b84ad986a8a550ff250b15fba849b0bfa14df417feb3c0d6bb",
+      "links": [
+        {
+          "idx": 0,
+          "slot_hash": "e2f8adee6e8b15352e2414f956ff0e64f397804fe0ad594b0573812c38708dd5",
+          "photo_hash": "cfe8f45020078b2f367f098f0454be20f7399cdc3326f5cb09021b4234f47eb5",
+          "prev": "ac15b5fd580684b84ad986a8a550ff250b15fba849b0bfa14df417feb3c0d6bb",
+          "seed": "f8aac58723f7ae033098c1431589595f2b79f54827098ac0538596f3a518d37b",
+          "words": [
+            248,
+            170,
+            197
+          ],
+          "words_en": [
+            "whale",
+            "pear",
+            "salt"
+          ],
+          "words_sw": [
+            "wali",
+            "njiwa",
+            "ramani"
+          ],
+          "commit": "9fc626bc75229bdf8862346aa8ab90cb04a88e1e4af5776cc8a408972e48561f"
+        },
+        {
+          "idx": 1,
+          "slot_hash": "1bdbd0ac1255c8e8dfa533ccb67b9ce9101647ed508a99bc7e8fe6eee6db7320",
+          "photo_hash": "d097f436c5d2b5640277083254d5def68348b7ee57cf588063f595e9c927b3a6",
+          "prev": "9fc626bc75229bdf8862346aa8ab90cb04a88e1e4af5776cc8a408972e48561f",
+          "seed": "13d2a7e92e7890601706cadfc534296cbce4fbf42e38a4d0882b8838f32da944",
+          "words": [
+            19,
+            210,
+            167
+          ],
+          "words_en": [
+            "berry",
+            "snail",
+            "panda"
+          ],
+          "words_sw": [
+            "chai",
+            "shati",
+            "nguo"
+          ],
+          "commit": "142fc3ab578c29a34b5759a5c25bb835254ab6a82927cf98d927c6542fe7c034"
+        },
+        {
+          "idx": 2,
+          "slot_hash": "bdffc1fba98d16f0f379b63c2c85e4182595191c1958a60390fbefae769de146",
+          "photo_hash": "deb0d0681c9eb72bb5e622772b92c8c50f4ca9f29fa2b180cb39e386219c19c5",
+          "prev": "142fc3ab578c29a34b5759a5c25bb835254ab6a82927cf98d927c6542fe7c034",
+          "seed": "4a43d04085294d45ff750530b45149623a8ac0d02d5e4197b9ddcd0b8001e48a",
+          "words": [
+            74,
+            67,
+            208
+          ],
+          "words_en": [
+            "doll",
+            "crown",
+            "sky"
+          ],
+          "words_sw": [
+            "kamba",
+            "jiwe",
+            "sauti"
+          ],
+          "commit": "380c4ff7cef4b3cf3f9b4c49ff44fb9611b25a575f1b84080db3a8e7caaad4ff"
+        }
+      ]
+    },
+    {
+      "teacher": "0c04aefde3c2a2600d148fe3141e02447913352d7e65d21fc77d6d78b8ac8890",
+      "day": 20717,
+      "day_le": "ed500000",
+      "prev0": "d7c82963e43eb7d4cc08bad8524ad39e0833907bac46e03dd3e742204ae2ce33",
+      "links": [
+        {
+          "idx": 0,
+          "slot_hash": "3057068b1957afd0e35b110546f2758d5320275c93d5fb2c16091718b012c62a",
+          "photo_hash": "4878c8df14955938704325ff67a626a31c032878e3b14bc5f5933f2e1a444fe1",
+          "prev": "d7c82963e43eb7d4cc08bad8524ad39e0833907bac46e03dd3e742204ae2ce33",
+          "seed": "038d79a1a96f3f2d07c26239ae6fcd0d72564298800e2c9e153f6519c9485818",
+          "words": [
+            3,
+            141,
+            121
+          ],
+          "words_en": [
+            "axe",
+            "leaf",
+            "honey"
+          ],
+          "words_sw": [
+            "asali",
+            "moja",
+            "mboga"
+          ],
+          "commit": "cd0325a54e72787c42df0fc0999d7192ab5034cdfb10c8eac6ee231da83df1fc"
+        },
+        {
+          "idx": 1,
+          "slot_hash": "ef7c9de4e708e5c1b9b059bc9b3862f07f701aad42739ec98326949da73431a4",
+          "photo_hash": "4edf167d491860a62826ab7c6e0cfdcb19eb5b04fd45af0f764d6b34a13c21fe",
+          "prev": "cd0325a54e72787c42df0fc0999d7192ab5034cdfb10c8eac6ee231da83df1fc",
+          "seed": "f9869228eb2b98813da8fadc93eab97ce11d478a2f2ba6fdd1e4ff2610afe57d",
+          "words": [
+            249,
+            134,
+            146
+          ],
+          "words_en": [
+            "wheel",
+            "key",
+            "map"
+          ],
+          "words_sw": [
+            "wiki",
+            "mia",
+            "mti"
+          ],
+          "commit": "b520e08dff4f521cab7ba3ddc3b7a02ee06d9e2c9cce6e356ba579e6b3ea182a"
+        },
+        {
+          "idx": 2,
+          "slot_hash": "10293e2d85ef9bc14f2ab69e2fe25161a3352512963b7e3dd59ea29269e98690",
+          "photo_hash": "fd352b11f8fbd0a826ea1162d272f1a2c0c18dcacd7b698b94a577fa5dee8c30",
+          "prev": "b520e08dff4f521cab7ba3ddc3b7a02ee06d9e2c9cce6e356ba579e6b3ea182a",
+          "seed": "8b0dae60c7dd648059903fc0c3d5d9625a1683c8b3ebb077d38c4e1f47008598",
+          "words": [
+            139,
+            13,
+            174
+          ],
+          "words_en": [
+            "lamb",
+            "bear",
+            "pig"
+          ],
+          "words_sw": [
+            "mlango",
+            "basi",
+            "nyati"
+          ],
+          "commit": "5ae8bd054ffc27f19a6d3674fb5c4df94548374ec4494a4e5472fb5be943076b"
+        }
+      ]
+    }
+  ]
+}
