@@ -12,13 +12,15 @@ import io
 from PIL import Image
 from pydantic import BaseModel, Field
 
-MAX_WORDS = 12  # also keeps constrained decoding short: long outputs crashed the local runner
+# A full day is 6 links x 3 words, and /verify sends every earlier link's words as `prior`,
+# so the transcript has to be able to hold them all, plus a little stray board text.
+MAX_WORDS = 24
 
 PROMPT = """This is a photo taken by a teacher in a classroom. Somewhere in it there may be a
 chalkboard or whiteboard with words written by hand.
 
 Report:
-- board_text: the words you can actually READ on the board, at most 12, one word per entry,
+- board_text: the words you can actually READ on the board, at most 24, one word per entry,
   spelled exactly as written. Only include words whose letters you can make out. Return an empty
   list if the board is empty or unreadable, or if there is no board. Never guess from context.
 - people: how many people (students and teachers) are visible.

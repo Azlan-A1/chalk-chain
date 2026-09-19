@@ -72,8 +72,11 @@ export function clientIp(c: Context): string {
   } catch {
     // not running under @hono/node-server (tests)
   }
-  if (!peer || isLoopback(peer)) {
-    const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+  // Only behind a proxy we were told about, and then the LAST entry: the one the proxy appended.
+  // Anything earlier is attacker-supplied, which would let one client spoof unlimited buckets.
+  if (process.env.CHALK_TRUST_PROXY === '1' && (!peer || isLoopback(peer))) {
+    const chain = c.req.header('x-forwarded-for')?.split(',') ?? [];
+    const fwd = chain.at(-1)?.trim();
     if (fwd) return fwd;
   }
   return peer || 'unknown';

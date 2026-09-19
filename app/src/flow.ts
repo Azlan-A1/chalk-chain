@@ -22,6 +22,8 @@ export interface Ctx {
   slotMs: number;
   lang: Lang;
   dayNum: number;
+  /** Chain slot as of the last poll, advanced by the clock; undefined before the first poll. */
+  currentSlot?: number;
 }
 
 export async function loadBackend(): Promise<Pick<Ctx, 'health' | 'programId' | 'relayer' | 'config' | 'slotMs'>> {

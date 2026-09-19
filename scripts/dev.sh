@@ -55,6 +55,8 @@ start vision bash -c "cd '$ROOT/vision' && exec .venv/bin/uvicorn chalkvision.ap
 export CHALK_AUTO_ROLL="${CHALK_AUTO_ROLL:-0}"
 [[ -n "${CHALK_AUTO_ROLL_MS:-}" ]] && export CHALK_AUTO_ROLL_MS
 [[ -n "${CHALK_RATE_LIMIT:-}" ]] && export CHALK_RATE_LIMIT
+[[ -n "${CHALK_ADMIN_TOKEN:-}" ]] && export CHALK_ADMIN_TOKEN VITE_ADMIN_TOKEN="${VITE_ADMIN_TOKEN:-$CHALK_ADMIN_TOKEN}"
+[[ -n "${CHALK_TRUST_PROXY:-}" ]] && export CHALK_TRUST_PROXY
 AUTO_DESC=off; [[ "$CHALK_AUTO_ROLL" == "1" ]] && AUTO_DESC="on (every ${CHALK_AUTO_ROLL_MS:-3000} ms)"
 log "backend :8787  rpc=$RPC_URL  auto-roll=$AUTO_DESC  rate-limit=$([[ "${CHALK_RATE_LIMIT:-}" == "0" ]] && echo off || echo on)"
 start backend bash -c "cd '$ROOT' && exec pnpm --silent --filter backend start"

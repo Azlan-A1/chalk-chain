@@ -41,6 +41,11 @@ if [[ "$KEEP_PHOTOS" == "0" ]]; then rm -f "$ROOT/vision/data/reuse.json"; fi
 log "demo re-checks: boundary every $EVERY slots, $(( CHANCE * 100 / 256 ))% chance each"
 admin update-config --recheck-interval-slots "$EVERY" --recheck-threshold "$CHANCE" >/dev/null
 
+# The oracle routes (re-check, roll, settle) are gated on this token so that opening the app to
+# the internet does not let a stranger zero a teacher's payout. The phone app is built with it.
+export CHALK_ADMIN_TOKEN="${CHALK_ADMIN_TOKEN:-$(node -e 'console.log(require("crypto").randomBytes(16).toString("hex"))')}"
+export VITE_ADMIN_TOKEN="$CHALK_ADMIN_TOKEN"
+
 DEV_ARGS=(--bg)
 [[ "$AUTO" == "1" ]] && DEV_ARGS+=(--auto-roll)
 VITE_HTTPS=1 bash "$ROOT/scripts/dev.sh" "${DEV_ARGS[@]}"

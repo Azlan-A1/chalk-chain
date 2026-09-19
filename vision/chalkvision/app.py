@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import recapture, words
-from .reading import BoardReading
+from .reading import MAX_WORDS, BoardReading
 from .reuse import ReuseIndex, pdq_hex
 
 log = logging.getLogger("chalkvision")
@@ -87,11 +87,13 @@ def _json_list(raw: str, field: str) -> list:
 def _mock_reading(expected: list[str], prior_flat: list[str]) -> BoardReading:
     """Demo stand-in: reads exactly the words it was told to expect."""
     people = int(os.environ.get("CHALK_MOCK_HEADCOUNT", 7))
-    return BoardReading(board_text=[*expected, *prior_flat], people=people, looks_like_screen=False)
+    text = [*expected, *prior_flat][:MAX_WORDS]  # a real engine cannot exceed the cap either
+    return BoardReading(board_text=text, people=people, looks_like_screen=False)
 
 
 @app.post("/verify")
-async def verify(
+def verify(  # sync on purpose: FastAPI runs it in a threadpool, so one slow model call
+             # does not block every other phone's check
     image: UploadFile = File(...),
     expected: str = Form(...),
     prior: str = Form("[]"),
@@ -100,7 +102,7 @@ async def verify(
     lang: str = Form("en"),
 ) -> dict:
     t0 = time.monotonic()
-    data = await image.read()
+    data = image.file.read()
     if not data or len(data) > MAX_BYTES:
         raise HTTPException(400, "image is empty or too large")
     try:

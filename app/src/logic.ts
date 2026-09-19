@@ -25,11 +25,20 @@ export interface NextLink {
   kind: LinkKind;
 }
 
-/** Which link the teacher can add now, or null when there is nothing to answer. */
-export function nextLink(day: DayAccount | null, maxLinks = 6): NextLink | null {
+/** Which link the teacher can add now, or null when there is nothing to answer.
+ *  `currentSlot`, when known, drops a re-check whose deadline has already passed: the program
+ *  would reject the photo with RecheckExpired, so offering it is a loop the teacher cannot win. */
+export function nextLink(day: DayAccount | null, maxLinks = 6, currentSlot?: number): NextLink | null {
   if (!day || day.nLinks === 0) return { idx: 0, kind: 'check_in' };
   if (day.settled || !day.recheckPending || day.nLinks >= maxLinks) return null;
+  if (currentSlot !== undefined && currentSlot > Number(day.recheckDeadlineSlot)) return null;
   return { idx: day.nLinks, kind: 'recheck_in' };
+}
+
+/** True when a re-check was opened and its deadline passed unanswered. */
+export function recheckMissed(day: DayAccount | null, currentSlot?: number): boolean {
+  if (!day || !day.recheckPending || day.settled || currentSlot === undefined) return false;
+  return currentSlot > Number(day.recheckDeadlineSlot);
 }
 
 export interface WordsForLink extends NextLink {

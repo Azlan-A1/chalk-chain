@@ -14,7 +14,7 @@ N = 512
 RING = (0.12, 0.92)  # fraction of Nyquist
 TOP_K = 8  # a windowed sinusoid spreads over a few bins, mirrored
 Z0, Z1 = 7.0, 14.0  # peak z-score mapped linearly onto score 0..1
-FLAG_AT = 0.6
+FLAG_AT = 0.45  # real classroom photos score 0.00; synthetic screen moire scores 0.55-0.61
 
 
 def _crop(img: Image.Image) -> np.ndarray:
@@ -48,8 +48,12 @@ def moire_z(img: Image.Image) -> float:
     step = max(4, n // 16)
 
     def near_grid(k: np.ndarray) -> np.ndarray:
-        m = np.abs(k) % step
-        return (m <= 1) | (m >= step - 1)
+        # JPEG block harmonics sit at NON-ZERO multiples of `step`. Zero is a multiple too, so
+        # notching it would throw away the axes — exactly where a screen photographed square-on
+        # puts its fringes, which made that cheat invisible.
+        ak = np.abs(k)
+        m = ak % step
+        return (ak >= step) & ((m <= 1) | (m >= step - 1))
 
     mask = (r > RING[0]) & (r < RING[1]) & ~near_grid(kx) & ~near_grid(ky)
     vals = spec[mask]

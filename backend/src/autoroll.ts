@@ -153,7 +153,13 @@ export class AutoRoller {
     }
   }
 
-  private forget(key: string) {
+  /** Stop watching (teacher, day) — call before settling so no roll lands mid-settle. */
+  forgetDay(teacher: string, day: number) {
+    this.forget(`${teacher}:${day}`);
+  }
+
+  /** Stop watching a day: it is being settled, or it is over. */
+  forget(key: string) {
     this.watched.delete(key);
     this.lastError.delete(key);
   }

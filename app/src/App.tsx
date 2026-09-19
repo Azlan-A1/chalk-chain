@@ -74,21 +74,42 @@ export function App() {
   const registered = base !== null && settings.registered === base.wallet && settings.lang !== null;
   const dayNum = dayNumber();
   // Stable identity: screens key effects off ctx, and the 4 s poll re-renders App.
+  const currentSlot = slotAt ? slotAt.slot + Math.floor((Date.now() - slotAt.at) / (base?.slotMs || 400)) : undefined;
   const ctx = useMemo<Ctx | null>(
-    () => (base && settings.lang ? { ...base, lang: settings.lang, dayNum } : null),
-    [base, settings.lang, dayNum],
+    () => (base && settings.lang ? { ...base, lang: settings.lang, dayNum, currentSlot } : null),
+    // currentSlot is deliberately not a dependency: it changes constantly and only feeds
+    // "is this re-check still answerable?", which the 4 s poll refreshes anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [base, settings.lang, dayNum, slotAt],
   );
 
   const refreshDay = useCallback(async () => {
     if (!ctx) return;
     try {
-      const j = await api.day(ctx.wallet, ctx.dayNum, ctx.lang);
+      let j = await api.day(ctx.wallet, ctx.dayNum, ctx.lang);
+      if (!j) {
+        // The UTC day number can roll over mid-session (20:00 EDT). If yesterday's day is still
+        // open, stay on it instead of silently starting a second day; the program accepts both.
+        const prev = await api.day(ctx.wallet, ctx.dayNum - 1, ctx.lang);
+        if (prev && !dayFromJson(prev).settled) j = prev;
+      }
       const d = j ? dayFromJson(j) : null;
       setDay(d);
       setDayLoaded(true);
-      if (d?.recheckPending) {
-        const s = await api.slot();
-        setSlotAt({ slot: num(s.currentSlot, num(s.slot)), at: Date.now() });
+      const s = await api.slot();
+      setSlotAt({ slot: num(s.currentSlot, num(s.slot)), at: Date.now() });
+      // A chain reset (scripts/demo.sh) wipes the Teacher account under an open app. Without this
+      // the app keeps offering check-in and the transaction fails with a raw program error.
+      if (!d) {
+        const onChain = await api.teacher(ctx.wallet).catch(() => undefined);
+        if (onChain === null) {
+          setSettings((st) => {
+            if (!st.registered) return st;
+            const next = { ...st, registered: null };
+            saveSettings(next);
+            return next;
+          });
+        }
       }
     } catch {
       /* keep the last good state; the next poll retries */

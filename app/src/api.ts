@@ -87,9 +87,15 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// Set by scripts/demo.sh so the demo panel can still drive re-checks and settle while the
+// backend refuses those routes to everyone else.
+const ADMIN_TOKEN = (import.meta.env?.VITE_ADMIN_TOKEN as string | undefined)?.trim();
+export const authHeaders = (): Record<string, string> =>
+  ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {};
+
 const json = (body: unknown): RequestInit => ({
   method: 'POST',
-  headers: { 'content-type': 'application/json' },
+  headers: { 'content-type': 'application/json', ...authHeaders() },
   body: JSON.stringify(body),
 });
 

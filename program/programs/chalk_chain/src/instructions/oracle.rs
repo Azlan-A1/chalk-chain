@@ -158,6 +158,13 @@ pub fn handle_roll_recheck(ctx: Context<RollRecheck>, _day: u32, boundary_slot: 
         boundary_slot > d.last_link().slot && boundary_slot <= now,
         ChalkError::BadBoundary
     );
+    // Only a boundary from the current interval may be rolled. Otherwise anyone could roll a slot
+    // from long ago: the re-check would open with a deadline already in the past, the teacher could
+    // never answer it, and settle_day would pay nothing.
+    require!(
+        now.saturating_sub(boundary_slot) <= cfg.recheck_interval_slots,
+        ChalkError::BadBoundary
+    );
     let h = {
         let data = ctx.accounts.slot_hashes.try_borrow_data()?;
         chain::find_slot_hash(&data, boundary_slot).ok_or_else(|| error!(ChalkError::SlotNotFound))?

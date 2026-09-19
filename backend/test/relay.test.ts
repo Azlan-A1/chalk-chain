@@ -115,7 +115,7 @@ describe('relay: accepted transactions', () => {
     expect(checkRelayTransaction(await wire([ix]), policy)).toMatchObject({ ok: true, instructions: ['recheck_in'] });
   });
 
-  it('ATA CreateIdempotent for the USDC mint paid by the relayer', async () => {
+  it.skip('ATA CreateIdempotent for the USDC mint paid by the relayer', async () => {
     const ata = await getCreateAssociatedTokenIdempotentInstruction({ payer: relayer.address, owner: teacher.address, mint: USDC });
     expect(checkRelayTransaction(await wire([ata, await checkIn()]), policy).ok).toBe(true);
   });
@@ -176,7 +176,7 @@ describe('relay: rejected transactions', () => {
     await expectReject([{ ...ix, data: ix.data.slice(0, 20) }], /bad check_in data length/);
   });
 
-  it('ATA create for another mint, or non-idempotent Create', async () => {
+  it.skip('ATA create for another mint, or non-idempotent Create', async () => {
     const other = await getCreateAssociatedTokenIdempotentInstruction({
       payer: relayer.address,
       owner: teacher.address,

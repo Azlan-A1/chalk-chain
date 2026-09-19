@@ -2,9 +2,16 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.ts';
 import { DEFAULT_LIMITS, TOO_MANY, TokenBuckets, rateLimit } from '../src/ratelimit.ts';
+
+beforeEach(() => {
+  delete process.env.CHALK_TRUST_PROXY;
+});
+afterEach(() => {
+  delete process.env.CHALK_TRUST_PROXY;
+});
 
 function clock(start = 1_000_000) {
   const c = { t: start, now: () => c.t };
@@ -68,7 +75,8 @@ describe('rateLimit middleware', () => {
     expect((await post(a, '/relay')).status).toBe(200);
   });
 
-  it('per IP; GETs and unlisted routes are not limited', async () => {
+  it('per IP behind a declared proxy; GETs and unlisted routes are not limited', async () => {
+    process.env.CHALK_TRUST_PROXY = '1';
     const { a } = app({ '/relay': 1 });
     expect((await post(a, '/relay', '10.0.0.1')).status).toBe(200);
     expect((await post(a, '/relay', '10.0.0.1')).status).toBe(429);
@@ -79,7 +87,25 @@ describe('rateLimit middleware', () => {
     }
   });
 
+  it('ignores a spoofed forwarding header unless CHALK_TRUST_PROXY=1', async () => {
+    delete process.env.CHALK_TRUST_PROXY;
+    const { a } = app({ '/relay': 1 });
+    expect((await post(a, '/relay', '10.0.0.1')).status).toBe(200);
+    // A fresh header would be a fresh bucket if we trusted it; we do not, so this is the same client.
+    expect((await post(a, '/relay', '10.0.0.2')).status).toBe(429);
+  });
+
+  it('uses the last forwarding entry, the one the proxy appended', async () => {
+    process.env.CHALK_TRUST_PROXY = '1';
+    const { a } = app({ '/relay': 1 });
+    const two = (spoof: string) =>
+      a.request('/relay', { method: 'POST', headers: { 'x-forwarded-for': `${spoof}, 10.0.0.9` } });
+    expect((await two('1.2.3.4')).status).toBe(200);
+    expect((await two('5.6.7.8')).status).toBe(429); // same real client, different spoofed prefix
+  });
+
   it('createApp applies the defaults before touching the chain, and can be disabled', async () => {
+    process.env.CHALK_TRUST_PROXY = '1';
     const dir = tmpdir();
     const paths = { deploy: join(dir, 'chalk-missing-deploy.json'), keys: join(dir, 'chalk-missing-keys') };
     const limited = createApp({ paths });

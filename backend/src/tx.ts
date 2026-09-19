@@ -110,25 +110,37 @@ let slotMsCache: { at: number; value: number } | null = null;
  */
 export async function measureSlotMs(rpc: Rpc): Promise<number> {
   if (slotMsCache && Date.now() - slotMsCache.at < 30_000) return slotMsCache.value;
-  let value = DEFAULT_SLOT_MS;
+  const plausible = (ms: number) => Number.isFinite(ms) && ms >= 100 && ms <= 2000;
+  let value: number | null = null;
+
+  // Performance samples first: they count slots against wall-clock seconds. Block times are an
+  // estimate, and solana-test-validator's estimate is a flat 1 s per slot, which is ~2x wrong.
   try {
-    const now = await rpc.getSlot({ commitment: 'confirmed' }).send();
-    const span = now > 151n ? 150n : now - 1n;
-    const [t1, t0] =
-      span >= 25n
-        ? await Promise.all([rpc.getBlockTime(now).send(), rpc.getBlockTime(now - span).send()])
-        : [null, null];
-    if (t1 !== null && t0 !== null && t1 > t0) {
-      value = Math.round((Number(t1 - t0) * 1000) / Number(span));
-    } else {
-      const samples = await rpc.getRecentPerformanceSamples(10).send();
-      const slots = samples.reduce((n, s) => n + Number(s.numSlots), 0);
-      const secs = samples.reduce((n, s) => n + s.samplePeriodSecs, 0);
-      if (slots >= 50 && secs > 0) value = Math.round((secs * 1000) / slots);
-    }
+    const samples = await rpc.getRecentPerformanceSamples(10).send();
+    const slots = samples.reduce((n, s) => n + Number(s.numSlots), 0);
+    const secs = samples.reduce((n, s) => n + s.samplePeriodSecs, 0);
+    const ms = slots >= 50 && secs > 0 ? Math.round((secs * 1000) / slots) : NaN;
+    if (plausible(ms)) value = ms;
   } catch {
-    // keep the default
+    // fall through
   }
-  slotMsCache = { at: Date.now(), value };
-  return value;
+
+  // A chain younger than one sample period: watch the clock ourselves.
+  if (value === null) {
+    try {
+      const a = await rpc.getSlot({ commitment: 'confirmed' }).send();
+      const t0 = Date.now();
+      await new Promise((r) => setTimeout(r, 2000));
+      const b = await rpc.getSlot({ commitment: 'confirmed' }).send();
+      const ms = b > a ? Math.round((Date.now() - t0) / Number(b - a)) : NaN;
+      if (plausible(ms)) value = ms;
+    } catch {
+      // fall through
+    }
+  }
+
+  slotMsCache = { at: Date.now(), value: value ?? DEFAULT_SLOT_MS };
+  return slotMsCache.value;
 }
+
+

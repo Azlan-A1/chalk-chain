@@ -2,7 +2,7 @@ import { dayFromJson, flagsToChecks, projectedPayout, wordsFor, type DayAccount,
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api.ts';
 import type { Ctx } from './flow.ts';
-import { checksPass, dayDate, formatUsdc, linkChips, nextLink, num, photoActions, proofHash, sealedSeconds } from './logic.ts';
+import { checksPass, dayDate, formatUsdc, linkChips, nextLink, num, photoActions, proofHash, recheckMissed, sealedSeconds } from './logic.ts';
 import { deletePhoto, listPhotos, loadPhoto, photoBlob } from './photos.ts';
 import { loadNotes, type LinkNote } from './storage.ts';
 import { ErrorBox, errorText, Spinner, Toast, useToast } from './ui.tsx';
@@ -19,9 +19,14 @@ interface Props {
 }
 
 export function Home({ ctx, day, dayLoaded, schoolId, onStart, onRefresh, onLang, onReset }: Props) {
-  const next = nextLink(day, ctx.config?.maxLinks);
+  const next = nextLink(day, ctx.config?.maxLinks, ctx.currentSlot);
+  const missed = recheckMissed(day, ctx.currentSlot);
   const notes = loadNotes(ctx.wallet, ctx.dayNum);
-  const today = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+  // Label the school day the chain is using (UTC day number), not the phone's local date:
+  // they differ for a few hours each evening and it looked like the day had been lost.
+  const today = new Date((day?.day ?? ctx.dayNum) * 86_400_000).toLocaleDateString([], {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+  });
   const [pending, recheckPending] = usePendingPhotos(ctx, day, dayLoaded);
   const [toast, showToast] = useToast();
   const onChecked = (message: string) => {
@@ -58,6 +63,10 @@ export function Home({ ctx, day, dayLoaded, schoolId, onStart, onRefresh, onLang
             <button className={`btn btn-primary btn-xl${next.kind === 'recheck_in' ? ' btn-alert' : ''}`} onClick={onStart}>
               {next.kind === 'check_in' ? 'Start check-in' : 'Answer re-check'}
             </button>
+          ) : missed ? (
+            <p className="note">
+              A re-check went unanswered, so today pays nothing. Ending the day will record that.
+            </p>
           ) : (
             <p className="note">Checked in. Keep the words on the board — a re-check can come at any time.</p>
           )}

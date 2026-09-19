@@ -10,11 +10,8 @@ import {
   type Transaction,
 } from '@solana/kit';
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
   INSTRUCTION_DATA_SIZES,
-  SYSTEM_PROGRAM_ADDRESS,
-  TOKEN_PROGRAM_ADDRESS,
   fromBase64,
   identifyInstruction,
   type InstructionName,
@@ -25,7 +22,6 @@ import {
 export interface RelayPolicy {
   relayer: Address;
   programId: Address;
-  /** ATA CreateIdempotent is only relayed for this mint. */
   usdcMint: Address | null;
   maxCuPriceMicroLamports?: bigint;
 }
@@ -93,15 +89,6 @@ export function checkRelayTransaction(wireBase64: unknown, policy: RelayPolicy):
       } else {
         return reject(`Instruction ${n}: only SetComputeUnitLimit/SetComputeUnitPrice are allowed`);
       }
-    } else if (program === ASSOCIATED_TOKEN_PROGRAM_ADDRESS) {
-      if (data.length !== 1 || data[0] !== 1) return reject(`Instruction ${n}: only ATA CreateIdempotent is allowed`);
-      if (accounts.length !== 6) return reject(`Instruction ${n}: ATA create needs 6 accounts`);
-      const [, , , mint, system, token] = accounts.map((i) => keys[i]);
-      if (!policy.usdcMint || mint !== policy.usdcMint) return reject(`Instruction ${n}: ATA create is only for the USDC mint`);
-      if (system !== SYSTEM_PROGRAM_ADDRESS || token !== TOKEN_PROGRAM_ADDRESS) {
-        return reject(`Instruction ${n}: ATA create must use the classic token program`);
-      }
-      relayerMayPay = true;
     } else {
       return reject(`Instruction ${n}: program ${program} is not allowed`);
     }

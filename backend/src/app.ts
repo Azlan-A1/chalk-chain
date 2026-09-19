@@ -58,7 +58,7 @@ export interface AppOptions {
   autoRoll?: { enabled: boolean; intervalMs?: number };
 }
 
-const bad = (message: string, status: 400 | 404 | 409 | 502 | 503 = 400, extra: object = {}) =>
+const bad = (message: string, status: 400 | 404 | 409 | 429 | 502 | 503 = 400, extra: object = {}) =>
   new HTTPException(status, { res: Response.json({ error: message, code: null, message, ...extra }, { status }) });
 
 function event<N extends ChalkEvent['name']>(logs: string[], name: N) {
@@ -172,6 +172,22 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
   const getCtx = opts.getCtx ?? ctxLoader(paths);
   const visionUrl = (opts.visionUrl ?? VISION_URL).replace(/\/$/, '');
   const limits = opts.rateLimit ?? (RATE_LIMIT ? DEFAULT_LIMITS : false);
+  // Rolling hourly cap on relayer-funded account creation (CHALK_MAX_NEW_ACCOUNTS_PER_HOUR).
+  const newAccounts = (() => {
+    const max = Number(process.env.CHALK_MAX_NEW_ACCOUNTS_PER_HOUR ?? 120);
+    let stamps: number[] = [];
+    return {
+      allow() {
+        if (!Number.isFinite(max) || max <= 0) return true;
+        const now = Date.now();
+        stamps = stamps.filter((t) => now - t < 3_600_000);
+        if (stamps.length >= max) return false;
+        stamps.push(now);
+        return true;
+      },
+    };
+  })();
+
   const roller = new AutoRoller(
     {
       view: async () => rollView(await getCtx()),
@@ -185,6 +201,20 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
 
   app.use('*', cors());
   if (limits) app.use('*', rateLimit(limits));
+
+  // Routes that make the oracle sign, or that spend the relayer's SOL on someone else's day.
+  // Without this, anyone who can reach the backend (e.g. through the demo tunnel) can open a
+  // re-check on a teacher who is not looking, or settle their day early, and their payout is lost.
+  const adminToken = process.env.CHALK_ADMIN_TOKEN?.trim();
+  if (adminToken) {
+    for (const path of ['/recheck', '/roll', '/settle', '/watch']) {
+      app.use(path, async (c, next) => {
+        const sent = c.req.header('authorization')?.replace(/^Bearer\s+/i, '').trim();
+        if (sent !== adminToken) return c.json({ error: 'Not allowed from here.' }, 401);
+        await next();
+      });
+    }
+  }
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) return err.getResponse();
@@ -267,6 +297,11 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
       usdcMint: ctx.usdcMint,
     });
     if (!check.ok) throw bad(check.reason);
+    // Each register_teacher/check_in makes the relayer pay rent for a new account (~0.006 SOL).
+    // Rate limits are per IP, so cap the spend globally too: a drained relayer means no check-ins.
+    if (check.instructions.some((n) => n === 'register_teacher' || n === 'check_in') && !newAccounts.allow()) {
+      throw bad('Too many new teachers or days right now. Try again shortly.', 429);
+    }
     let signed;
     try {
       signed = await cosign(check.tx, ctx.relayer);
@@ -402,6 +437,18 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
     const teacher = parseWallet(body.teacher);
     const day = parseInt32(body.day, 'day');
     const usdcMint = ctx.usdcMint ?? requireAddress(ctx.deploy, 'usdcMint', 'Run `admin create-mint`.');
+    // Stop the cranker first: a roll landing between here and settle_day would make the program
+    // reject the settle with RecheckInProgress, on stage, at the end of the demo.
+    roller.forgetDay(teacher, day);
+    const open = await getDay(ctx, teacher, day);
+    if (open?.recheckPending) {
+      const slot = await ctx.rpc.getSlot({ commitment: 'confirmed' }).send();
+      if (slot <= open.recheckDeadlineSlot) {
+        throw bad('A re-check is open — answer it on the phone, then end the day.', 409, {
+          recheckDeadlineSlot: open.recheckDeadlineSlot.toString(),
+        });
+      }
+    }
     const ixs = [
       await getCreateAssociatedTokenIdempotentInstruction({ payer: ctx.oracle, owner: teacher, mint: usdcMint }),
       await getSettleDayInstruction({ programAddress: ctx.programId, oracle: ctx.oracle, teacher, day, usdcMint }),

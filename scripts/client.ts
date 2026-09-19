@@ -45,8 +45,15 @@ export const rnd = () => Math.floor(Math.random() * 2 ** 31);
 
 // ---- backend client ----
 
+/** The demo gates the oracle routes on a token; pass it through when the shell has one. */
+export const authHeaders = (): Record<string, string> =>
+  process.env.CHALK_ADMIN_TOKEN ? { authorization: `Bearer ${process.env.CHALK_ADMIN_TOKEN}` } : {};
+
 export async function api<T = any>(path: string, init?: RequestInit): Promise<{ status: number; body: T }> {
-  const res = await fetch(`${BACKEND}${path}`, init);
+  const res = await fetch(`${BACKEND}${path}`, {
+    ...init,
+    headers: { ...(init?.headers as Record<string, string> | undefined), ...authHeaders() },
+  });
   const text = await res.text();
   let body: any;
   try {

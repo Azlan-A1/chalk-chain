@@ -19,6 +19,7 @@ import {
   formatCountdown,
   formatUsdc,
   nextLink,
+  recheckMissed,
   sealedSeconds,
   slotsMsLeft,
   windowMsLeft,
@@ -147,5 +148,30 @@ describe('check rows', () => {
     expect(checksPass(base.flags)).toBe(false);
     expect(checksPass(0x1f)).toBe(true);
     expect(checksPass(PASS_MASK)).toBe(true);
+  });
+});
+
+
+describe('re-check deadlines', () => {
+  const day = (over: Partial<DayAccount> = {}): DayAccount =>
+    ({
+      teacher: 'T' as never, day: 20715, nLinks: 1, recheckPending: true, rechecksMet: 0,
+      missedRecheck: false, settled: false, bump: 254, recheckFromSlot: 100n,
+      recheckDeadlineSlot: 500n, lastRolledBoundary: 0n, paid: 0n, links: [], ...over,
+    }) as unknown as DayAccount;
+
+  it('offers the re-check while the deadline is ahead', () => {
+    expect(nextLink(day(), 6, 400)?.kind).toBe('recheck_in');
+    expect(recheckMissed(day(), 400)).toBe(false);
+  });
+
+  it('stops offering a re-check the program would reject, and says it was missed', () => {
+    expect(nextLink(day(), 6, 501)).toBeNull();
+    expect(recheckMissed(day(), 501)).toBe(true);
+  });
+
+  it('without a known slot, behaves as before', () => {
+    expect(nextLink(day(), 6)?.kind).toBe('recheck_in');
+    expect(recheckMissed(day())).toBe(false);
   });
 });

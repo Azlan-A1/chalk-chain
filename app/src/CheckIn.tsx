@@ -89,6 +89,9 @@ export function CheckIn({ ctx, onDone }: { ctx: Ctx; onDone: () => void }) {
     try {
       const photo = await preparePhoto(file);
       setPhase({ t: 'sending', ch, photo });
+      // Save the bytes BEFORE relaying: if the response is lost the link can still land on-chain,
+      // and only these exact bytes can ever verify it.
+      await savePhoto(ctx.wallet, ctx.dayNum, ch.idx, photo.bytes).catch(() => {});
       const r = await sendLink(ctx, ch, ch.slot, photo.hash);
       const slotAge = r.slotAge ?? r.slot_age ?? (r.slot !== undefined ? num(r.slot) - ch.slot : undefined);
       const sealedS =
@@ -96,8 +99,6 @@ export function CheckIn({ ctx, onDone }: { ctx: Ctx; onDone: () => void }) {
           ? sealedSeconds(num(slotAge), ctx.slotMs)
           : Math.round((ch.totalMs - ch.leftMs + (Date.now() - ch.at)) / 1000);
       saveNote(ctx.wallet, ctx.dayNum, ch.idx, { at: Date.now(), slotAge: slotAge !== undefined ? num(slotAge) : undefined });
-      // On-chain now: keep the exact bytes until /verify succeeds, so a failed check can be retried from Home.
-      await savePhoto(ctx.wallet, ctx.dayNum, ch.idx, photo.bytes).catch(() => {});
       await verify(ch, photo, sealedS);
     } catch (e) {
       setPhase({ t: 'error', message: errorText(e), retryWords: true });
