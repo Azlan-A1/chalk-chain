@@ -14,6 +14,8 @@
     "test:shared": "pnpm --filter @chalk/shared test",
     "test:all": "pnpm --filter @chalk/shared test && pnpm --filter backend test && pnpm --filter app test && pnpm --filter app build && (cd vision && .venv/bin/python -m pytest -q tests) && (cd program && cargo test)",
     "dev:backend": "pnpm --filter backend dev",
-    "dev:app": "pnpm --filter app dev"
+    "dev:app": "pnpm --filter app dev",
+    "demo": "bash scripts/demo.sh",
+    "demo:cheat": "pnpm --silent --filter @chalk/scripts demo"
   }
 }

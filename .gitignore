@@ -16,3 +16,6 @@ __pycache__/
 .DS_Store
 .setup/
 .run/
+demo/*.jpg
+demo/*.jpeg
+demo/*.png

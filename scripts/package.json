@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "e2e": "tsx e2e.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx demo.ts"
   },
   "dependencies": {
     "@chalk/shared": "workspace:*",
-    "@solana/kit": "^8.3.0"
+    "@solana/kit": "^8.3.0",
+    "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

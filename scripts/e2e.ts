@@ -6,50 +6,37 @@
  *   pnpm --filter @chalk/scripts e2e        (BACKEND=http://127.0.0.1:8787 by default)
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   address,
-  appendTransactionMessageInstructions,
-  blockhash as toBlockhash,
-  createNoopSigner,
-  createSolanaRpc,
-  createTransactionMessage,
   generateKeyPairSigner,
-  getBase64EncodedWireTransaction,
-  partiallySignTransactionMessageWithSigners,
-  pipe,
-  setTransactionMessageFeePayerSigner,
-  setTransactionMessageLifetimeUsingBlockhash,
   AccountRole,
   type Address,
   type Instruction,
-  type KeyPairSigner,
 } from '@solana/kit';
 import {
   ERROR_CODES,
   PASS_MASK,
   SYSTEM_PROGRAM_ADDRESS,
-  addressBytes,
-  challenge,
-  dayFromJson,
   dayNumber,
-  findAssociatedTokenAddress,
-  fromHex,
   getCheckInInstruction,
-  getRecheckInInstruction,
   getRegisterTeacherInstruction,
   photoHash,
-  prevFor,
-  type DayJson,
 } from '@chalk/shared';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const BACKEND = (process.env.BACKEND ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
-const deploy = JSON.parse(readFileSync(process.env.CHALK_DEPLOY ?? join(ROOT, 'shared/deploy.json'), 'utf8'));
-const rpc = createSolanaRpc(deploy.rpcUrl);
-const LANG = 'en';
+import {
+  ROOT,
+  deploy,
+  sleep,
+  rnd,
+  api,
+  post,
+  relayTx,
+  verify,
+  getDay,
+  usdcBalance,
+  register,
+  commitLink,
+} from './client.ts';
 
 let passed = 0;
 function ok(cond: unknown, what: string): asserts cond {
@@ -58,124 +45,6 @@ function ok(cond: unknown, what: string): asserts cond {
   console.log(`  ok  ${what}`);
 }
 const step = (s: string) => console.log(`\n== ${s}`);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// Fresh scene per photo: fixed seeds would make reruns near-duplicates of earlier runs' photos.
-const rnd = () => Math.floor(Math.random() * 2 ** 31);
-
-// ---- backend client ----
-
-async function api<T = any>(path: string, init?: RequestInit): Promise<{ status: number; body: T }> {
-  const res = await fetch(`${BACKEND}${path}`, init);
-  const text = await res.text();
-  let body: any;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    body = text;
-  }
-  return { status: res.status, body };
-}
-const post = (path: string, json: unknown) =>
-  api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(json) });
-
-/** Same shape the app builds: v0, relayer (no-op signer) pays, teacher signs. */
-async function relayTx(instructions: Instruction[], relayer: Address) {
-  const { body: bh } = await api('/blockhash');
-  const msg = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(createNoopSigner(relayer), m),
-    (m) =>
-      setTransactionMessageLifetimeUsingBlockhash(
-        { blockhash: toBlockhash(bh.blockhash), lastValidBlockHeight: BigInt(bh.lastValidBlockHeight) },
-        m,
-      ),
-    (m) => appendTransactionMessageInstructions(instructions, m),
-  );
-  const tx = getBase64EncodedWireTransaction(await partiallySignTransactionMessageWithSigners(msg));
-  return post('/relay', { tx });
-}
-
-/** A real JPEG of a classroom with the words chalked on the board (vision/tests/synth.py). */
-function photo(words: string[], seed: number): Uint8Array {
-  const py = join(ROOT, 'vision/.venv/bin/python');
-  const code = [
-    'import sys, json',
-    `sys.path.insert(0, ${JSON.stringify(join(ROOT, 'vision/tests'))})`,
-    'import synth',
-    'img = synth.classroom(json.loads(sys.argv[1]), seed=int(sys.argv[2]), size=(800, 600))',
-    'sys.stdout.buffer.write(synth.jpeg(img, quality=85))',
-  ].join('\n');
-  return new Uint8Array(execFileSync(py, ['-c', code, JSON.stringify(words), String(seed)], { maxBuffer: 16 << 20 }));
-}
-
-async function verify(teacher: Address, day: number, idx: number, image: Uint8Array) {
-  const form = new FormData();
-  form.set('teacher', teacher);
-  form.set('day', String(day));
-  form.set('idx', String(idx));
-  form.set('lang', LANG);
-  form.set('image', new Blob([new Uint8Array(image)], { type: 'image/jpeg' }), 'photo.jpg');
-  return api('/verify', { method: 'POST', body: form });
-}
-
-async function getDay(teacher: Address, day: number) {
-  const { status, body } = await api<DayJson>(`/day/${teacher}/${day}?lang=${LANG}`);
-  if (status !== 200) throw new Error(`GET /day ${status}: ${JSON.stringify(body)}`);
-  return { json: body, day: dayFromJson(body) };
-}
-
-/** GET /slot, waiting until the newest SlotHashes entry is at least `minSlot`. */
-async function freshSlot(minSlot = 0n): Promise<{ slot: bigint; hash: Uint8Array }> {
-  for (let i = 0; i < 60; i++) {
-    const { body } = await api('/slot');
-    if (BigInt(body.slot) >= minSlot) return { slot: BigInt(body.slot), hash: fromHex(body.hash) };
-    await sleep(250);
-  }
-  throw new Error(`SlotHashes never reached slot ${minSlot}`);
-}
-
-async function usdcBalance(owner: Address): Promise<bigint> {
-  const [ata] = await findAssociatedTokenAddress(owner, address(deploy.usdcMint));
-  try {
-    const { value } = await rpc.getTokenAccountBalance(ata, { commitment: 'confirmed' }).send();
-    return BigInt(value.amount);
-  } catch {
-    return 0n;
-  }
-}
-
-async function register(teacher: KeyPairSigner, relayer: Address, schoolId: number) {
-  const ix = await getRegisterTeacherInstruction({
-    programAddress: deploy.programId,
-    payer: relayer,
-    teacher,
-    schoolId,
-  });
-  return relayTx([ix], relayer);
-}
-
-/** Derive words from a fresh slot, photograph them, commit via check_in or recheck_in. */
-async function commitLink(opts: {
-  teacher: KeyPairSigner;
-  relayer: Address;
-  day: number;
-  lastCommit: Uint8Array | null;
-  minSlot?: bigint;
-  image?: Uint8Array;
-  seed: number;
-}) {
-  const { teacher, relayer, day } = opts;
-  const { slot, hash } = await freshSlot(opts.minSlot ?? 0n);
-  const prev = prevFor(addressBytes(teacher.address), day, opts.lastCommit);
-  const { words } = challenge(hash, addressBytes(teacher.address), prev, LANG);
-  const image = opts.image ?? photo(words, opts.seed);
-  const args = { programAddress: deploy.programId, teacher, day, slot, photoHash: photoHash(image) };
-  const ix = opts.lastCommit
-    ? await getRecheckInInstruction(args)
-    : await getCheckInInstruction({ ...args, payer: relayer });
-  const res = await relayTx([ix], relayer);
-  return { res, words, image, slot };
-}
 
 // ---- run ----
 
@@ -187,7 +56,7 @@ async function main() {
   const relayer = address(health.body.relayer);
   const vision = await fetch('http://127.0.0.1:8001/health').then((r) => r.json()).catch(() => null);
   ok(vision?.ok, `vision up (engine ${vision?.engine})`);
-  // The synthetic photos below carry no real chalk words, so a real model would fail them.
+  // The checks below rely on the mock engine's fixed answers (head count, no recapture).
   ok(vision?.engine === 'mock', 'vision is in mock mode (restart with CHALK_VISION_MODE=mock scripts/dev.sh --bg --no-app)');
   const { body: config } = await api('/config');
   const windowSlots = BigInt(config.windowSlots);

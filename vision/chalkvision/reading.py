@@ -18,8 +18,10 @@ Report:
   Only use words from the candidate list, spelled exactly as listed. Do not guess words that
   are hidden, cut off or illegible.
 - people: how many people (students and teachers) are visible.
-- looks_like_screen: true if this looks like a photo of a screen, monitor or printed photo
-  rather than a real room.
+- looks_like_screen: true if this is a photo OF a screen, monitor, phone or printed photo
+  rather than a photo of a real room. Signs: a dark bezel or frame around the picture, a
+  tilted rectangle inside the photo, wavy moire or rainbow interference patterns, a visible
+  pixel grid, or screen glare.
 - notes: one short sentence about anything unusual, or an empty string."""
 
 
