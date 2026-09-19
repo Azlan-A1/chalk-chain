@@ -8,6 +8,7 @@ import {
   SYSVAR_SLOT_HASHES_ADDRESS,
   bytesEqual,
   configToJson,
+  DAY_SIZE,
   dayNumber,
   dayToJson,
   decodeConfig,
@@ -172,6 +173,11 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
   const getCtx = opts.getCtx ?? ctxLoader(paths);
   const visionUrl = (opts.visionUrl ?? VISION_URL).replace(/\/$/, '');
   const limits = opts.rateLimit ?? (RATE_LIMIT ? DEFAULT_LIMITS : false);
+  // A photo that fails can be re-submitted to /verify; without a cap, a cheater just retries
+  // until the model answers differently. Legitimate retries (a dropped response) need a couple.
+  const verifyAttempts = new Map<string, number>();
+  const maxAttempts = Number(process.env.CHALK_MAX_VERIFY_ATTEMPTS ?? 3);
+
   // Rolling hourly cap on relayer-funded account creation (CHALK_MAX_NEW_ACCOUNTS_PER_HOUR).
   const newAccounts = (() => {
     const max = Number(process.env.CHALK_MAX_NEW_ACCOUNTS_PER_HOUR ?? 120);
@@ -193,6 +199,27 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
       view: async () => rollView(await getCtx()),
       getDay: async (teacher, day) => getDay(await getCtx(), teacher, day),
       roll: async (teacher, day, boundarySlot) => sendRoll(await getCtx(), teacher, day, boundarySlot),
+      openDays: async () => {
+        const ctx = await getCtx();
+        const today = dayNumber();
+        const accounts = await ctx.rpc
+          .getProgramAccounts(ctx.programId, {
+            encoding: 'base64',
+            commitment: 'confirmed',
+            filters: [{ dataSize: BigInt(DAY_SIZE) }],
+          })
+          .send();
+        const open: { teacher: Address; day: number }[] = [];
+        for (const { account } of accounts) {
+          try {
+            const d = decodeDay(new Uint8Array(Buffer.from(account.data[0], 'base64')));
+            if (!d.settled && d.nLinks > 0 && d.day >= today - 1) open.push({ teacher: d.teacher, day: d.day });
+          } catch {
+            // not a Day account after all
+          }
+        }
+        return open;
+      },
     },
     opts.autoRoll ?? { enabled: AUTO_ROLL, intervalMs: AUTO_ROLL_MS },
   );
@@ -343,6 +370,12 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
     const link = day.links[idx];
     if (!link) throw bad("That photo doesn't exist.", 400, { code: 6011 });
     if (day.settled) throw bad('Today is already settled.', 409, { code: 6010 });
+    const attemptKey = `${teacher}:${dayNum}:${idx}`;
+    const attempts = (verifyAttempts.get(attemptKey) ?? 0) + 1;
+    if (Number.isFinite(maxAttempts) && maxAttempts > 0 && attempts > maxAttempts) {
+      throw bad('This photo has already been checked. Take a new photo.', 429, { attempts: attempts - 1 });
+    }
+    verifyAttempts.set(attemptKey, attempts);
     if (!bytesEqual(photoHash(bytes), link.photoHash)) throw bad('Photo does not match what was committed');
 
     const expected = wordsFor(link.words, lang);

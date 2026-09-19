@@ -30,13 +30,28 @@ def load_wordlist(lang: str) -> tuple[str, ...]:
     return tuple(norm(w) for w in words)
 
 
+def confusable(a: str, b: str) -> bool:
+    """Words a transcript could not tell apart (same rule as find_words)."""
+    if a == b:
+        return True
+    if len(a) < FUZZY_MIN_LEN or len(b) < FUZZY_MIN_LEN:
+        return False
+    return difflib.SequenceMatcher(None, a, b).ratio() >= FUZZY_RATIO
+
+
 def build_candidates(
     expected: list[str], prior_flat: list[str], image_sha256: bytes, lang: str
 ) -> tuple[list[str], list[str]]:
     """Return (shuffled candidates, decoys). Deterministic in the image hash."""
     rng = random.Random(int.from_bytes(image_sha256, "big"))
     known = set(expected) | set(prior_flat)
-    pool = [w for w in dict.fromkeys(load_wordlist(lang)) if w not in known]
+    # A decoy that a transcript could confuse with a word actually on the board (apple/maple,
+    # askari/sukari) would be "flagged" for an honest teacher, so never pick one.
+    pool = [
+        w
+        for w in dict.fromkeys(load_wordlist(lang))
+        if w not in known and not any(confusable(w, k) for k in known)
+    ]
     decoys = rng.sample(pool, min(N_DECOYS, len(pool)))
     candidates = list(dict.fromkeys([*expected, *prior_flat, *decoys]))
     rng.shuffle(candidates)
@@ -48,7 +63,7 @@ def transcript_tokens(board_text: list[str]) -> set[str]:
     out: set[str] = set()
     for line in board_text or []:
         for tok in re.split(r"[^0-9a-z]+", norm(line)):
-            if len(tok) >= 3:
+            if len(tok) >= 2:  # 'ua' (flower) is a real Swahili list word
                 out.add(tok)
     return out
 

@@ -94,7 +94,7 @@ export function Home({ ctx, day, dayLoaded, schoolId, onStart, onRefresh, onLang
             <>
               {ctx.config && (
                 <p className="muted center">
-                  So far: {formatUsdc(projectedPayout(day, ctx.config.bonusPerLink).amount)} USDC if the day ended now
+                  So far: {formatUsdc(projectedPayout(day, ctx.config.bonusPerLink, ctx.currentSlot).amount)} USDC if the day ended now
                 </p>
               )}
               <EndDay ctx={ctx} onSettled={onRefresh} />

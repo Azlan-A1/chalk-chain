@@ -202,10 +202,20 @@ export function encodeDay(d: DayInput): Uint8Array {
   return w.finish();
 }
 
-/** Links that pass, and what settle_day would pay (SPEC §2.4), before any missed-recheck check done on-chain at settle time. */
-export function projectedPayout(day: DayAccount, bonusPerLink: bigint): { passing: number; amount: bigint } {
+/** Links that pass, and what settle_day would pay (SPEC §2.4).
+ *
+ * Pass `currentSlot` where it is known: settle_day marks a still-pending re-check past its
+ * deadline as missed and pays nothing, so without it this over-promises a bonus. */
+export function projectedPayout(
+  day: DayAccount,
+  bonusPerLink: bigint,
+  currentSlot?: bigint | number,
+): { passing: number; amount: bigint; willMissRecheck: boolean } {
   const passing = day.links.filter((l) => l.passes).length;
   const firstPasses = day.links[0]?.passes ?? false;
-  const amount = firstPasses && !day.missedRecheck ? BigInt(passing) * bonusPerLink : 0n;
-  return { passing, amount };
+  const expired =
+    day.recheckPending && currentSlot !== undefined && BigInt(currentSlot) > day.recheckDeadlineSlot;
+  const willMissRecheck = day.missedRecheck || expired;
+  const amount = firstPasses && !willMissRecheck ? BigInt(passing) * bonusPerLink : 0n;
+  return { passing, amount, willMissRecheck };
 }

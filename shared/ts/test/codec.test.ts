@@ -193,7 +193,7 @@ describe('account codecs', () => {
     expect(d.links.map((l) => l.passes)).toEqual([true, false]);
     expect(d).toEqual({ ...day, links: day.links.map((l, i) => ({ ...l, passes: i === 0 })) });
     expect(encodeDay(d)).toEqual(data);
-    expect(projectedPayout(d, 250_000n)).toEqual({ passing: 1, amount: 250_000n });
+    expect(projectedPayout(d, 250_000n)).toEqual({ passing: 1, amount: 250_000n, willMissRecheck: false });
   });
 
   it('Day field offsets match the spec layout', () => {
@@ -527,5 +527,49 @@ describe('events', () => {
       },
     ]);
     expect(decodeEvent(new Uint8Array(8))).toBeNull();
+  });
+});
+
+describe('projectedPayout and a re-check past its deadline', () => {
+  const open = (over: Partial<DayInput> = {}): DayAccount =>
+    decodeDay(
+      encodeDay({
+        teacher: TEACHER,
+        day: 20715,
+        nLinks: 1,
+        recheckPending: true,
+        rechecksMet: 0,
+        missedRecheck: false,
+        settled: false,
+        bump: 255,
+        recheckFromSlot: 100n,
+        recheckDeadlineSlot: 500n,
+        lastRolledBoundary: 0n,
+        paid: 0n,
+        links: [
+          {
+            slot: 90n,
+            photoHash: bytes(32, 1),
+            seed: bytes(32, 2),
+            commit: bytes(32, 3),
+            words: [1, 2, 3],
+            flags: PASS_MASK,
+            headcount: 7,
+          },
+        ],
+        ...over,
+      }),
+    );
+
+  it('promises the bonus while the re-check can still be answered', () => {
+    expect(projectedPayout(open(), 600000n, 400n)).toEqual({ passing: 1, amount: 600000n, willMissRecheck: false });
+  });
+
+  it('promises nothing once the deadline has passed, as settle_day would', () => {
+    expect(projectedPayout(open(), 600000n, 501n)).toEqual({ passing: 1, amount: 0n, willMissRecheck: true });
+  });
+
+  it('without a slot, keeps the old behaviour', () => {
+    expect(projectedPayout(open(), 600000n).amount).toBe(600000n);
   });
 });

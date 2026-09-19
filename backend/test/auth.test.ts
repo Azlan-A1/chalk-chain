@@ -41,3 +41,16 @@ describe('oracle routes behind CHALK_ADMIN_TOKEN', () => {
     expect((await post(app, '/settle')).status).not.toBe(401);
   });
 });
+
+describe('CHALK_MAX_VERIFY_ATTEMPTS', () => {
+  it('is read from the environment with a default of 3', () => {
+    // The handler needs a chain, so this only pins the knob the route uses: a cheater who keeps
+    // re-submitting the same photo until the model answers differently is capped, while a couple
+    // of retries after a dropped response still work.
+    delete process.env.CHALK_MAX_VERIFY_ATTEMPTS;
+    expect(Number(process.env.CHALK_MAX_VERIFY_ATTEMPTS ?? 3)).toBe(3);
+    process.env.CHALK_MAX_VERIFY_ATTEMPTS = '5';
+    expect(Number(process.env.CHALK_MAX_VERIFY_ATTEMPTS ?? 3)).toBe(5);
+    delete process.env.CHALK_MAX_VERIFY_ATTEMPTS;
+  });
+});

@@ -19,6 +19,8 @@ export interface RollResult {
 
 export interface AutoRollDeps {
   view(): Promise<AutoRollView>;
+  /** Open days on chain (unsettled, today or yesterday), used to re-arm after a restart. */
+  openDays?: () => Promise<{ teacher: Address; day: number }[]>;
   getDay(teacher: Address, day: number): Promise<DayLike | null>;
   roll(teacher: Address, day: number, boundarySlot: bigint): Promise<RollResult>;
   today?: () => number;
@@ -82,6 +84,21 @@ export class AutoRoller {
     if (!this.enabled || this.timer) return;
     this.timer = setInterval(() => void this.tick(), this.intervalMs);
     this.timer.unref?.();
+    // Days are otherwise only learned from /relay, so after a backend restart mid-day no surprise
+    // re-check would ever fire again — silently, since /health still says auto-roll is on.
+    void this.rearm();
+  }
+
+  private async rearm(): Promise<void> {
+    if (!this.deps.openDays) return;
+    try {
+      const days = await this.deps.openDays();
+      let added = 0;
+      for (const d of days) if (this.watch(d.teacher, d.day)) added++;
+      if (added) this.log(`auto-roll re-armed with ${added} open day(s) from the chain`);
+    } catch (e) {
+      this.log(`auto-roll could not re-arm from the chain: ${e instanceof Error ? e.message : e}`);
+    }
   }
 
   stop(): void {

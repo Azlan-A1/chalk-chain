@@ -37,10 +37,11 @@ function fake() {
   const setView = (currentSlot: bigint) => {
     chain.view = { ...chain.view, currentSlot, slotHashes: hashes(currentSlot - 400n, currentSlot) };
   };
-  const make = (enabled = true) =>
+  const make = (enabled = true, openDays?: () => Promise<{ teacher: typeof A; day: number }[]>) =>
     new AutoRoller(
       {
         view: async () => chain.view,
+        ...(openDays ? { openDays } : {}),
         getDay: async (t, d) => chain.days.get(`${t}:${d}`) ?? null,
         roll: async (teacher, day, boundarySlot): Promise<RollResult> => {
           if (chain.failRoll) throw chain.failRoll;
@@ -195,5 +196,28 @@ describe('AutoRoller', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(chain.rolls).toHaveLength(2);
     r.stop();
+  });
+});
+
+describe('AutoRoller re-arming after a restart', () => {
+  it('watches the open days the chain reports when it starts', async () => {
+    const { chain, make } = fake();
+    const roller = make(true, async () => [{ teacher: A, day: chain.today }]);
+    expect(roller.active).toBe(0);
+    roller.start();
+    await vi.waitFor(() => expect(roller.active).toBe(1));
+    roller.stop();
+    expect(chain.logs.join(' ')).toContain('re-armed');
+  });
+
+  it('keeps running when the chain cannot be read', async () => {
+    const { chain, make } = fake();
+    const roller = make(true, async () => {
+      throw new Error('rpc down');
+    });
+    roller.start();
+    await vi.waitFor(() => expect(chain.logs.join(' ')).toContain('could not re-arm'));
+    expect(roller.status().enabled).toBe(true);
+    roller.stop();
   });
 });
