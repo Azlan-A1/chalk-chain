@@ -29,6 +29,7 @@ import {
   fromBase64,
   getCheckInInstruction,
   identifyInstruction,
+  dayNumber,
   photoHash,
   toBase64,
   toHex,
@@ -115,6 +116,8 @@ describe('server against a fake RPC', () => {
   let app: ReturnType<typeof createApp>;
   let programId: Address;
   let teacher: Address;
+  let watchTeacher: Address;
+  let paths: { deploy: string; keys: string };
   const DAY = 20715;
   const image = new TextEncoder().encode('fake jpeg bytes');
   const accounts = new Map<string, Uint8Array>();
@@ -148,9 +151,9 @@ describe('server against a fake RPC', () => {
         vaultBump: 254,
       }),
     );
-    const day = (d: number, linkSlot: bigint) =>
+    const day = (d: number, linkSlot: bigint, t = teacher) =>
       encodeDay({
-        teacher,
+        teacher: t,
         day: d,
         nLinks: 1,
         recheckPending: false,
@@ -176,6 +179,8 @@ describe('server against a fake RPC', () => {
       });
     accounts.set((await findDayPda(programId, teacher, DAY))[0], day(DAY, 1000n));
     accounts.set((await findDayPda(programId, teacher, DAY + 2))[0], day(DAY + 2, 500n));
+    watchTeacher = (await generateKeyPairSigner()).address;
+    accounts.set((await findDayPda(programId, watchTeacher, dayNumber()))[0], day(dayNumber(), 500n, watchTeacher));
 
     server = createServer((req, res) => {
       let raw = '';
@@ -248,7 +253,8 @@ describe('server against a fake RPC', () => {
     const dir = tmp();
     writeFileSync(join(dir, 'deploy.json'), JSON.stringify({ cluster: 'localnet', rpcUrl: `http://127.0.0.1:${port}`, programId, usdcMint: SYSVAR_SLOT_HASHES_ADDRESS }));
     await writeKeys(dir);
-    app = createApp({ paths: { deploy: join(dir, 'deploy.json'), keys: dir }, visionUrl: `http://127.0.0.1:${visionPort}` });
+    paths = { deploy: join(dir, 'deploy.json'), keys: dir };
+    app = createApp({ paths, visionUrl: `http://127.0.0.1:${visionPort}` });
   });
 
   afterAll(() => {
@@ -366,6 +372,35 @@ describe('server against a fake RPC', () => {
     const ix = firstIx(sent.at(-1)!);
     expect(identifyInstruction(ix.data)).toBe('roll_recheck');
     expect(new DataView(ix.data.buffer).getBigUint64(12, true)).toBe(900n);
+  });
+
+  it('POST /watch without CHALK_AUTO_ROLL: accepted but not watched', async () => {
+    const res = await post('/watch', { teacher: watchTeacher, day: dayNumber() });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ watching: false, autoRoll: { enabled: false, active: 0, lastRoll: null } });
+    expect(await (await app.request('/health')).json()).toMatchObject({ rateLimit: true, autoRoll: { enabled: false } });
+  });
+
+  it('auto-roll: /watch validates the day, then the cranker rolls it once', async () => {
+    const auto = createApp({ paths, autoRoll: { enabled: true, intervalMs: 3_600_000 } });
+    const watch = (body: unknown) =>
+      auto.request('/watch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await watch({ teacher: watchTeacher, day: dayNumber() + 1 })).status).toBe(404);
+    expect((await watch({ teacher: watchTeacher, day: dayNumber() - 2 })).status).toBe(409);
+    const res = await watch({ teacher: watchTeacher, day: dayNumber() });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ watching: true, autoRoll: { enabled: true, active: 1 } });
+
+    const before = sent.length;
+    await auto.autoRoller.tick();
+    await auto.autoRoller.tick();
+    expect(sent.length).toBe(before + 1);
+    const ix = firstIx(sent.at(-1)!);
+    expect(identifyInstruction(ix.data)).toBe('roll_recheck');
+    expect(new DataView(ix.data.buffer).getBigUint64(12, true)).toBe(900n);
+    const health = (await (await auto.request('/health')).json()) as { autoRoll: { active: number; lastRoll: { boundarySlot: string; hit: boolean } } };
+    expect(health.autoRoll).toMatchObject({ active: 1, lastRoll: { boundarySlot: '900', hit: false } });
+    auto.autoRoller.stop();
   });
 
   it('POST /settle sends [ATA CreateIdempotent, settle_day]', async () => {

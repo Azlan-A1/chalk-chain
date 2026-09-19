@@ -13,6 +13,7 @@ import {
   type WordsForLink,
 } from './logic.ts';
 import { preparePhoto, type PreparedPhoto } from './photo.ts';
+import { deletePhoto, savePhoto } from './photos.ts';
 import { saveNote } from './storage.ts';
 import { Board, CheckList, ErrorBox, errorText, Ring, Spinner, useNow } from './ui.tsx';
 
@@ -73,6 +74,7 @@ export function CheckIn({ ctx, onDone }: { ctx: Ctx; onDone: () => void }) {
       setPhase({ t: 'checking', ch, photo, sealedS });
       try {
         const result = await api.verify({ teacher: ctx.wallet, day: ctx.dayNum, idx: ch.idx, lang: ctx.lang, image: photo.blob });
+        void deletePhoto(ctx.wallet, ctx.dayNum, ch.idx).catch(() => {});
         setPhase({ t: 'checking', ch, photo, sealedS, result });
       } catch (e) {
         setPhase({ t: 'checking', ch, photo, sealedS, error: errorText(e) });
@@ -94,6 +96,8 @@ export function CheckIn({ ctx, onDone }: { ctx: Ctx; onDone: () => void }) {
           ? sealedSeconds(num(slotAge), ctx.slotMs)
           : Math.round((ch.totalMs - ch.leftMs + (Date.now() - ch.at)) / 1000);
       saveNote(ctx.wallet, ctx.dayNum, ch.idx, { at: Date.now(), slotAge: slotAge !== undefined ? num(slotAge) : undefined });
+      // On-chain now: keep the exact bytes until /verify succeeds, so a failed check can be retried from Home.
+      await savePhoto(ctx.wallet, ctx.dayNum, ch.idx, photo.bytes).catch(() => {});
       await verify(ch, photo, sealedS);
     } catch (e) {
       setPhase({ t: 'error', message: errorText(e), retryWords: true });
@@ -191,6 +195,9 @@ export function CheckIn({ ctx, onDone }: { ctx: Ctx; onDone: () => void }) {
         <ErrorBox message={`Couldn't check the photo: ${error}`}>
           <button className="btn btn-primary" onClick={() => void verify(ch, photo, sealedS)}>
             Try again
+          </button>
+          <button className="btn-link" onClick={onDone}>
+            Check it later from Home
           </button>
         </ErrorBox>
       )}

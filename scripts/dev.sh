@@ -4,9 +4,10 @@
 #   scripts/dev.sh              # foreground; Ctrl-C stops all three
 #   scripts/dev.sh --bg         # background; logs in .run/*.log, stop with scripts/stop.sh
 #   scripts/dev.sh --no-app     # vision + backend only (what scripts/e2e.ts needs)
+#   scripts/dev.sh --auto-roll  # backend cranks roll_recheck by itself (same as CHALK_AUTO_ROLL=1; keep off for e2e)
 #   VITE_HTTPS=1 scripts/dev.sh # app over HTTPS on the LAN (phone camera testing)
 #
-# Vision runs with CHALK_VISION_MODE=mock unless ANTHROPIC_API_KEY is set (then Claude reads the board).
+# Vision runs with CHALK_VISION_MODE=mock unless ANTHROPIC_API_KEY or OPENAI_API_KEY is set (then a model reads the board).
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
@@ -15,6 +16,7 @@ for a in "$@"; do
   case "$a" in
     --bg) BG=1 ;;
     --no-app) APP=0 ;;
+    --auto-roll) export CHALK_AUTO_ROLL=1 ;;
     *) die "unknown option $a" ;;
   esac
 done
@@ -24,7 +26,7 @@ RPC_URL=$(node -p 'require(process.argv[1]).rpcUrl' "$DEPLOY_JSON")
 solana -u "$RPC_URL" cluster-version >/dev/null 2>&1 || die "RPC $RPC_URL is not answering; run scripts/setup-localnet.sh"
 
 if [[ -z "${CHALK_VISION_MODE:-}" ]]; then
-  if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then export CHALK_VISION_MODE=auto; else export CHALK_VISION_MODE=mock; fi
+  if [[ -n "${ANTHROPIC_API_KEY:-}${OPENAI_API_KEY:-}" ]]; then export CHALK_VISION_MODE=auto; else export CHALK_VISION_MODE=mock; fi
 fi
 [[ -x "$ROOT/vision/.venv/bin/uvicorn" ]] || die "vision venv missing: cd vision && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 
@@ -49,7 +51,12 @@ start() {
 
 log "vision  :8001  mode=$CHALK_VISION_MODE"
 start vision bash -c "cd '$ROOT/vision' && exec .venv/bin/uvicorn chalkvision.app:app --host 127.0.0.1 --port 8001"
-log "backend :8787  rpc=$RPC_URL"
+# The backend reads CHALK_AUTO_ROLL / CHALK_AUTO_ROLL_MS / CHALK_RATE_LIMIT from this environment.
+export CHALK_AUTO_ROLL="${CHALK_AUTO_ROLL:-0}"
+[[ -n "${CHALK_AUTO_ROLL_MS:-}" ]] && export CHALK_AUTO_ROLL_MS
+[[ -n "${CHALK_RATE_LIMIT:-}" ]] && export CHALK_RATE_LIMIT
+AUTO_DESC=off; [[ "$CHALK_AUTO_ROLL" == "1" ]] && AUTO_DESC="on (every ${CHALK_AUTO_ROLL_MS:-3000} ms)"
+log "backend :8787  rpc=$RPC_URL  auto-roll=$AUTO_DESC  rate-limit=$([[ "${CHALK_RATE_LIMIT:-}" == "0" ]] && echo off || echo on)"
 start backend bash -c "cd '$ROOT' && exec pnpm --silent --filter backend start"
 if [[ "$APP" == "1" ]]; then
   if [[ "${VITE_HTTPS:-}" == "1" ]]; then log "app     https://<this-machine-ip>:5173 (accept the self-signed cert on the phone)"; else log "app     http://localhost:5173"; fi

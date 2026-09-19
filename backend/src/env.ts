@@ -8,6 +8,11 @@ export const ROOT = resolve(import.meta.dirname, '../..');
 export const PORT = Number(process.env.PORT ?? 8787);
 export const VISION_URL = (process.env.VISION_URL ?? 'http://127.0.0.1:8001').replace(/\/$/, '');
 export const DEFAULT_RPC_URL = 'http://127.0.0.1:8899';
+/** CHALK_RATE_LIMIT=0 turns off the per-IP limits on POST routes. */
+export const RATE_LIMIT = process.env.CHALK_RATE_LIMIT !== '0';
+/** CHALK_AUTO_ROLL=1 starts the roll_recheck cranker; CHALK_AUTO_ROLL_MS is its poll interval. */
+export const AUTO_ROLL = process.env.CHALK_AUTO_ROLL === '1';
+export const AUTO_ROLL_MS = Math.max(500, Number(process.env.CHALK_AUTO_ROLL_MS) || 3000);
 
 export interface Paths {
   deploy: string;

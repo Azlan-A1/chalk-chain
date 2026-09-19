@@ -254,9 +254,14 @@ Response `200 application/json`:
 }
 ```
 
-`GET /health` → `{"ok": true, "engine": "claude" | "ocr" | "mock"}`.
-Config via env: `ANTHROPIC_API_KEY`, `CHALK_VLM_MODEL` (default `claude-opus-5`),
-`CHALK_VISION_MODE` (`auto` | `mock`), `CHALK_REUSE_THRESHOLD` (PDQ Hamming, default 31).
+`GET /health` → `{"ok": true, "engine": "claude" | "openai" | "mock", "engines": [...]}`.
+Config via env: `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY`; `CHALK_VISION_PROVIDER`
+(`claude` | `openai`, default `claude`) picks which goes first when both are set, and the other
+is tried if the first fails; `CHALK_VLM_MODEL` (default `claude-opus-5`), `CHALK_OPENAI_MODEL`
+(default `gpt-5.5`), `CHALK_VISION_MODE` (`auto` | `mock` | `claude` | `openai`),
+`CHALK_REUSE_THRESHOLD` (PDQ Hamming, default 31). `GET /health` also returns `engines`, the
+order the service will try. `engine` in `/verify` responses is `claude`, `openai`, `mock` or
+`mock-fallback`.
 
 ---
 
@@ -277,6 +282,10 @@ HTTP (JSON unless noted), default port 8787, CORS open for the app origin.
 | `POST /recheck` | `{teacher, day}` | `{signature}` (trigger_recheck) |
 | `POST /roll` | `{teacher, day}` | cranks roll_recheck at the latest boundary → `{signature, hit}` |
 | `POST /settle` | `{teacher, day}` | `{signature, amount}` |
+| `POST /watch` | `{teacher, day}` | `{watching}` — adds the day to the automatic re-check cranker (`CHALK_AUTO_ROLL=1`); days are also added when `/relay` lands a check-in |
+
+POST routes are rate-limited per IP (`CHALK_RATE_LIMIT=0` disables); over the limit they return
+`429 {error}` with `Retry-After`. `GET /health` also reports `autoRoll` and `rateLimit`.
 
 Admin CLI: `pnpm --filter backend admin <cmd>` with `create-mint`, `init-config`,
 `update-config`, `fund-vault <amount>`, `status`.

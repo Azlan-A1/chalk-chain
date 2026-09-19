@@ -94,6 +94,37 @@ boundary slot after the last photo), a language toggle, and *Reset teacher*. *En
 twice) settles and shows the USDC paid. After re-running `setup-localnet.sh` the app notices that its
 teacher is no longer registered and shows Setup again.
 
+## Surprise re-checks (auto)
+
+With `CHALK_AUTO_ROLL=1` (or `scripts/dev.sh --auto-roll`) the backend cranks `roll_recheck` by itself,
+so re-checks show up without anyone pressing *Roll for re-check*. It is off by default so `pnpm e2e`
+stays deterministic; leave it off when running the e2e.
+
+- It watches every (teacher, day) whose check_in or recheck_in went through `/relay`. After a backend
+  restart that list is empty; `POST /watch {teacher, day}` adds a day back (404 if there is no check-in).
+- Every `CHALK_AUTO_ROLL_MS` (default 3000) it rolls each open day at the newest boundary slot after
+  the last photo. It skips days with a re-check already open, never rolls the same boundary twice, and
+  forgets days that are settled, have a full chain, or are older than yesterday.
+- Each roll is logged with hit/miss in `.run/backend.log`. `GET /health` shows
+  `autoRoll: {enabled, intervalMs, active, lastRoll}`.
+
+With the default config a boundary comes every ~2 min and hits 1 time in 4. For a demo, make them
+frequent (about every 20 s, half of them hits) and put it back afterwards:
+
+```sh
+pnpm --filter backend admin update-config --recheck-interval-slots 50 --recheck-threshold 128
+CHALK_AUTO_ROLL=1 scripts/dev.sh
+pnpm --filter backend admin status            # current values; restore with update-config later
+```
+
+The teacher then has `recheck_window_slots` (~3 min) from the boundary slot to send the new photo.
+
+**Rate limits.** POST routes are limited per client IP (token bucket, requests per minute): `/relay` 30,
+`/verify` 20, `/roll` 60 (the e2e polls it while waiting for a boundary), `/recheck`, `/settle` and
+`/watch` 10. Over the limit the backend answers 429 `Too many requests — wait a moment and try again.`
+with `Retry-After`. `CHALK_RATE_LIMIT=0` turns them off. Requests through the Vite `/api` proxy all come
+from 127.0.0.1, so phones using the proxy share one bucket unless the proxy sends `X-Forwarded-For`.
+
 ## Devnet
 
 ```sh
@@ -110,14 +141,20 @@ The "USDC" is a 6-decimal mint whose authority is `keys/admin.json`, not Circle'
 
 | Var | Used by | Default / meaning |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | vision | when set (and mode is `auto`), Claude reads the board; otherwise `dev.sh` uses mock |
+| `ANTHROPIC_API_KEY` | vision | when set, Claude can read the board; put it in the gitignored `.env` (see `.env.example`) |
+| `OPENAI_API_KEY` | vision | when set, OpenAI can read the board; with both keys set, the second provider is the backup |
+| `CHALK_VISION_PROVIDER` | vision | `claude` (default) or `openai`: which provider goes first when both keys are set |
 | `CHALK_VLM_MODEL` | vision | `claude-opus-5` |
-| `CHALK_VISION_MODE` | vision | `auto` (Claude if key, else mock) or `mock`. `dev.sh` defaults to `mock` without a key |
-| `CHALK_VISION_FALLBACK` | vision | `mock` = if Claude errors, answer with the mock instead of 502 (demo safety net) |
+| `CHALK_OPENAI_MODEL` | vision | `gpt-5.5` (`CHALK_OPENAI_EFFORT`, default `low`; set it empty for non-reasoning models) |
+| `CHALK_VISION_MODE` | vision | `auto` (a model if any key is set, else mock) or `mock`. `dev.sh` defaults to `mock` without a key |
+| `CHALK_VISION_FALLBACK` | vision | `mock` = if every model errors, answer with the mock instead of 502 (demo safety net) |
 | `CHALK_MOCK_HEADCOUNT` | vision | people count the mock reports (7) |
 | `CHALK_REUSE_THRESHOLD` | vision | PDQ Hamming distance counted as reuse (31) |
 | `CHALK_REUSE_DB` | vision | reuse index file (`vision/data/reuse.json`; delete it to forget old photos) |
 | `PORT`, `HOST` | backend | 8787, 0.0.0.0 |
+| `CHALK_AUTO_ROLL` | backend, dev.sh | `1` = crank `roll_recheck` automatically (off) |
+| `CHALK_AUTO_ROLL_MS` | backend | cranker poll interval in ms (3000) |
+| `CHALK_RATE_LIMIT` | backend | `0` = no per-IP limits on POST routes (on) |
 | `VISION_URL` | backend | `http://127.0.0.1:8001` |
 | `CHALK_DEPLOY`, `CHALK_KEYS_DIR`, `CHALK_RPC_URL` | backend, scripts | `shared/deploy.json`, `keys/`, RPC override |
 | `VITE_BACKEND_URL` | app | absolute backend URL instead of the `/api` proxy |
@@ -135,7 +172,10 @@ The "USDC" is a 6-decimal mint whose authority is `keys/admin.json`, not Circle'
   solana-test-validator and devnet, but Surfpool reports 1 slot/s, so the defaults would be wrong there.
 - **Re-check never rolls.** `/roll` returns 409 with `nextBoundary` until a multiple of
   `recheck_interval_slots` has passed after the last photo. For demos, use *Trigger re-check*, or run
-  `admin update-config --recheck-interval-slots 20 --recheck-threshold 255`.
+  `admin update-config --recheck-interval-slots 20 --recheck-threshold 255`. To have them happen on
+  their own, see *Surprise re-checks (auto)*.
+- **429 "Too many requests".** A per-IP rate limit; wait a few seconds, or start the backend with
+  `CHALK_RATE_LIMIT=0`.
 - **Devnet faucet limits.** `solana airdrop` is rate-limited and often fails. Use faucet.solana.com
   (GitHub login) or transfer from a funded wallet. The relayer pays about 0.007 SOL of rent per
   teacher-day.

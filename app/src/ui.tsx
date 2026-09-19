@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CheckRow } from './logic.ts';
 import { formatCountdown } from './logic.ts';
 
@@ -95,4 +95,27 @@ export function Spinner({ label }: { label: string }) {
 
 export function errorText(e: unknown): string {
   return e instanceof Error ? e.message : 'Something went wrong. Try again.';
+}
+
+export function useToast(ms = 2600): [string | null, (message: string) => void] {
+  const [message, setMessage] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const show = useCallback(
+    (m: string) => {
+      clearTimeout(timer.current);
+      setMessage(m);
+      timer.current = setTimeout(() => setMessage(null), ms);
+    },
+    [ms],
+  );
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return [message, show];
+}
+
+export function Toast({ message }: { message: string | null }) {
+  return (
+    <div className="toast-slot" role="status" aria-live="polite">
+      {message && <div className="toast">{message}</div>}
+    </div>
+  );
 }

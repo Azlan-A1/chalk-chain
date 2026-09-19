@@ -4,9 +4,11 @@ import { HTTPException } from 'hono/http-exception';
 import { address, isAddress, isSolanaError, type Address } from '@solana/kit';
 import {
   ATTESTED,
+  MAX_LINKS,
   SYSVAR_SLOT_HASHES_ADDRESS,
   bytesEqual,
   configToJson,
+  dayNumber,
   dayToJson,
   decodeConfig,
   decodeDay,
@@ -37,10 +39,12 @@ import {
   type DayAccount,
   type Lang,
 } from '@chalk/shared';
-import { latestRollableBoundary, nextBoundary } from './boundary.ts';
+import { AutoRoller, type AutoRollView, type RollResult } from './autoroll.ts';
+import { planRoll } from './boundary.ts';
 import { ctxLoader, requireAddress, type Ctx } from './ctx.ts';
-import { SetupError, VISION_URL, defaultPaths, type Paths } from './env.ts';
+import { AUTO_ROLL, AUTO_ROLL_MS, RATE_LIMIT, SetupError, VISION_URL, defaultPaths, type Paths } from './env.ts';
 import { flagsFromVision, type VisionResult } from './flags.ts';
+import { DEFAULT_LIMITS, rateLimit, type Limits } from './ratelimit.ts';
 import { checkRelayTransaction, cosign } from './relay.ts';
 import { TxError, fetchData, measureSlotMs, sendAndConfirmWire, sendInstructions, type Rpc } from './tx.ts';
 
@@ -48,9 +52,13 @@ export interface AppOptions {
   paths?: Paths;
   visionUrl?: string;
   getCtx?: () => Promise<Ctx>;
+  /** Per-IP limits on POST routes (requests per minute); false disables. Default: DEFAULT_LIMITS unless CHALK_RATE_LIMIT=0. */
+  rateLimit?: Limits | false;
+  /** roll_recheck cranker. Default: CHALK_AUTO_ROLL / CHALK_AUTO_ROLL_MS. */
+  autoRoll?: { enabled: boolean; intervalMs?: number };
 }
 
-const bad = (message: string, status: 400 | 404 | 409 | 502 = 400, extra: object = {}) =>
+const bad = (message: string, status: 400 | 404 | 409 | 502 | 503 = 400, extra: object = {}) =>
   new HTTPException(status, { res: Response.json({ error: message, code: null, message, ...extra }, { status }) });
 
 function event<N extends ChalkEvent['name']>(logs: string[], name: N) {
@@ -127,15 +135,56 @@ async function slotHashes(rpc: Rpc) {
   return parseSlotHashes(fromBase64(value.data[0]));
 }
 
+async function rollView(ctx: Ctx): Promise<AutoRollView> {
+  const [config, entries, currentSlot] = await Promise.all([
+    getConfig(ctx),
+    slotHashes(ctx.rpc),
+    ctx.rpc.getSlot({ commitment: 'confirmed' }).send(),
+  ]);
+  return {
+    currentSlot,
+    interval: config.recheckIntervalSlots,
+    maxLinks: Math.min(config.maxLinks, MAX_LINKS),
+    slotHashes: entries,
+  };
+}
+
+async function sendRoll(ctx: Ctx, teacher: Address, day: number, boundarySlot: bigint): Promise<RollResult> {
+  const ix = await getRollRecheckInstruction({
+    programAddress: ctx.programId,
+    cranker: ctx.relayer,
+    teacher,
+    day,
+    boundarySlot,
+  });
+  const landed = await sendInstructions(ctx.rpc, ctx.relayer, [ix]);
+  const ev = event(landed.logs, 'RecheckRolled');
+  const hit = ev ? ev.hit : ((await getDay(ctx, teacher, day))?.recheckPending ?? null);
+  return { signature: landed.signature, boundarySlot, hit, roll: ev?.roll ?? null };
+}
+
 // ---- app ----
 
-export function createApp(opts: AppOptions = {}): Hono {
+export type ChalkApp = Hono & { autoRoller: AutoRoller };
+
+export function createApp(opts: AppOptions = {}): ChalkApp {
   const paths = opts.paths ?? defaultPaths();
   const getCtx = opts.getCtx ?? ctxLoader(paths);
   const visionUrl = (opts.visionUrl ?? VISION_URL).replace(/\/$/, '');
+  const limits = opts.rateLimit ?? (RATE_LIMIT ? DEFAULT_LIMITS : false);
+  const roller = new AutoRoller(
+    {
+      view: async () => rollView(await getCtx()),
+      getDay: async (teacher, day) => getDay(await getCtx(), teacher, day),
+      roll: async (teacher, day, boundarySlot) => sendRoll(await getCtx(), teacher, day, boundarySlot),
+    },
+    opts.autoRoll ?? { enabled: AUTO_ROLL, intervalMs: AUTO_ROLL_MS },
+  );
+  roller.start();
   const app = new Hono();
 
   app.use('*', cors());
+  if (limits) app.use('*', rateLimit(limits));
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) return err.getResponse();
@@ -162,6 +211,8 @@ export function createApp(opts: AppOptions = {}): Hono {
         oracle: ctx.oracle.address,
         visionUrl,
         warnings: ctx.warnings,
+        rateLimit: limits !== false,
+        autoRoll: roller.status(),
       });
     } catch (e) {
       if (!(e instanceof SetupError)) throw e;
@@ -223,13 +274,15 @@ export function createApp(opts: AppOptions = {}): Hono {
       throw bad('Transaction is missing a signature');
     }
     const landed = await sendAndConfirmWire(ctx.rpc, signed.wire, signed.signature);
+    const events = parseEventsFromLogs(landed.logs);
     const checkedIn = event(landed.logs, 'CheckedIn');
+    for (const e of events) if (e.name === 'CheckedIn') roller.watch(e.teacher, e.day);
     return c.json({
       signature: landed.signature,
       slot: landed.slot.toString(),
       slotAge: checkedIn ? checkedIn.slotAge.toString() : null,
       instructions: check.instructions,
-      events: toJsonSafe(parseEventsFromLogs(landed.logs)),
+      events: toJsonSafe(events),
     });
   });
 
@@ -315,48 +368,32 @@ export function createApp(opts: AppOptions = {}): Hono {
     const body = await jsonBody(c);
     const teacher = parseWallet(body.teacher);
     const dayNum = parseInt32(body.day, 'day');
-    const [day, config, entries, currentSlot] = await Promise.all([
-      mustGetDay(ctx, teacher, dayNum),
-      getConfig(ctx),
-      slotHashes(ctx.rpc),
-      ctx.rpc.getSlot({ commitment: 'confirmed' }).send(),
-    ]);
-    if (day.settled) throw bad('Today is already settled.', 409, { code: 6010 });
-    if (day.recheckPending) throw bad('A re-check is still open.', 409, { code: 6008 });
-    const last = day.links[day.nLinks - 1];
-    if (!last) throw bad('No check-in for that day', 404);
-    const interval = config.recheckIntervalSlots;
-    const boundarySlot = latestRollableBoundary({
-      currentSlot,
-      interval,
-      lastLinkSlot: last.slot,
-      lastRolledBoundary: day.lastRolledBoundary,
-      slotHashes: entries,
-    });
-    if (boundarySlot === null) {
-      const floor = last.slot > day.lastRolledBoundary ? last.slot : day.lastRolledBoundary;
-      const next = nextBoundary(floor > currentSlot ? floor : currentSlot, interval);
+    const [day, view] = await Promise.all([mustGetDay(ctx, teacher, dayNum), rollView(ctx)]);
+    const plan = planRoll(day, view);
+    if (plan.kind === 'settled') throw bad('Today is already settled.', 409, { code: 6010 });
+    if (plan.kind === 'pending') throw bad('A re-check is still open.', 409, { code: 6008 });
+    if (plan.kind === 'missing') throw bad('No check-in for that day', 404);
+    if (plan.kind === 'wait') {
       throw bad('No re-check boundary to roll yet.', 409, {
-        currentSlot: currentSlot.toString(),
-        nextBoundary: next.toString(),
+        currentSlot: view.currentSlot.toString(),
+        nextBoundary: plan.nextBoundary?.toString() ?? null,
       });
     }
-    const ix = await getRollRecheckInstruction({
-      programAddress: ctx.programId,
-      cranker: ctx.relayer,
-      teacher,
-      day: dayNum,
-      boundarySlot,
-    });
-    const landed = await sendInstructions(ctx.rpc, ctx.relayer, [ix]);
-    const ev = event(landed.logs, 'RecheckRolled');
-    const hit = ev ? ev.hit : ((await getDay(ctx, teacher, dayNum))?.recheckPending ?? null);
-    return c.json({
-      signature: landed.signature,
-      boundarySlot: boundarySlot.toString(),
-      hit,
-      roll: ev?.roll ?? null,
-    });
+    const r = await sendRoll(ctx, teacher, dayNum, plan.boundarySlot);
+    roller.watch(teacher, dayNum);
+    return c.json({ signature: r.signature, boundarySlot: r.boundarySlot.toString(), hit: r.hit, roll: r.roll });
+  });
+
+  app.post('/watch', async (c) => {
+    const body = await jsonBody(c);
+    const teacher = parseWallet(body.teacher);
+    const dayNum = parseInt32(body.day, 'day');
+    if (!roller.enabled) return c.json({ watching: false, autoRoll: roller.status() });
+    if (dayNum + 1 < dayNumber()) throw bad('That day is over.', 409);
+    const day = await mustGetDay(await getCtx(), teacher, dayNum);
+    if (day.settled) throw bad('Today is already settled.', 409, { code: 6010 });
+    if (!roller.watch(teacher, dayNum)) throw bad('Too many days are being watched. Try again later.', 503);
+    return c.json({ watching: true, autoRoll: roller.status() });
   });
 
   app.post('/settle', async (c) => {
@@ -380,5 +417,5 @@ export function createApp(opts: AppOptions = {}): Hono {
     });
   });
 
-  return app;
+  return Object.assign(app, { autoRoller: roller });
 }

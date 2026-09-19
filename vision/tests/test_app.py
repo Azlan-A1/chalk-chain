@@ -37,7 +37,7 @@ def post(client, img_bytes, photo_id, group_id, expected=("lion", "cup", "rain")
 
 
 def test_health(client):
-    assert client.get("/health").json() == {"ok": True, "engine": "mock"}
+    assert client.get("/health").json() == {"ok": True, "engine": "mock", "engines": []}
 
 
 def test_mock_verify_shape(client):

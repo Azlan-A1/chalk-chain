@@ -1,15 +1,17 @@
 import {
   addressBytes,
+  ATTESTED,
   challenge,
   flagsToChecks,
   fromHex,
+  isLang,
   prevFor,
   USDC_DECIMALS,
   wordsFor,
   type DayAccount,
   type Lang,
 } from '@chalk/shared';
-import type { Address } from '@solana/kit';
+import { isAddress, type Address } from '@solana/kit';
 import type { VerifyResult } from './api.ts';
 
 // Pure helpers (no DOM, no network) so they can be unit tested.
@@ -90,6 +92,12 @@ export function formatUsdc(amount: bigint | string | number): string {
   return `${v / unit}${frac ? '.' + frac.padEnd(2, '0') : ''}`;
 }
 
+/** USDC base units as a fixed 2-decimal amount, rounded half up: "0.50". */
+export function formatUsdc2(amount: bigint | string | number): string {
+  const cents = (BigInt(amount) * 100n + 10n ** BigInt(USDC_DECIMALS) / 2n) / 10n ** BigInt(USDC_DECIMALS);
+  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, '0')}`;
+}
+
 export interface CheckRow {
   key: string;
   label: string;
@@ -121,3 +129,81 @@ export function checksPass(flags: number): boolean {
 /** Big slot values come as strings; slots fit easily in a JS number. */
 export const num = (x: number | string | bigint | undefined | null, fallback = 0): number =>
   x === undefined || x === null || x === '' ? fallback : Number(x);
+
+/** Chips for one link as stored on-chain; "Earlier words" only applies from link 1. */
+export function linkChips(flags: number, headcount: number, idx: number): [string, boolean][] {
+  const c = flagsToChecks(flags);
+  return [
+    ['Words', c.wordsOk],
+    ...(idx > 0 ? ([['Earlier words', c.chainOk]] as [string, boolean][]) : []),
+    [`People (${headcount})`, c.peopleOk],
+    ['Real photo', c.notRecapture],
+    ['New photo', c.notReused],
+  ];
+}
+
+// Unverified photos kept on the phone (IndexedDB) until /verify succeeds.
+
+export const PHOTO_MAX_AGE_MS = 2 * 86_400_000;
+
+export function isPhotoStale(savedAt: number, now: number, maxAgeMs = PHOTO_MAX_AGE_MS): boolean {
+  return !(now - savedAt <= maxAgeMs); // a missing or bad timestamp counts as stale
+}
+
+/**
+ * For the link indices with a stored photo: which still need a check (recorded, not attested)
+ * and which can be dropped (attested, or the day is settled so /verify would be refused).
+ * Indices the chain doesn't show yet are left alone; the age purge handles them.
+ */
+export function photoActions(day: DayAccount | null, stored: readonly number[]): { retry: number[]; drop: number[] } {
+  const retry: number[] = [];
+  const drop: number[] = [];
+  if (!day) return { retry, drop };
+  for (const i of stored) {
+    const link = day.links[i];
+    if (day.settled) drop.push(i);
+    else if (!link) continue;
+    else if (link.flags & ATTESTED) drop.push(i);
+    else retry.push(i);
+  }
+  return { retry, drop };
+}
+
+// Hash routes: #/t/<wallet> (today) and #/t/<wallet>/<day>, optional ?lang=en|sw.
+
+export type Route =
+  | { t: 'app' }
+  | { t: 'proof'; wallet: Address; day: number | null; lang: Lang | null }
+  | { t: 'bad-proof' };
+
+export function parseRoute(hash: string): Route {
+  const [path = '', query = ''] = hash.replace(/^#/, '').split('?', 2);
+  const parts = path.split('/').filter(Boolean);
+  if (parts[0] !== 't') return { t: 'app' };
+  const [, wallet, dayPart, ...rest] = parts;
+  if (!wallet || rest.length > 0 || !isAddress(wallet)) return { t: 'bad-proof' };
+  let day: number | null = null;
+  if (dayPart !== undefined) {
+    if (!/^\d{1,10}$/.test(dayPart) || Number(dayPart) > 0xffff_ffff) return { t: 'bad-proof' };
+    day = Number(dayPart);
+  }
+  const lang = new URLSearchParams(query).get('lang');
+  return { t: 'proof', wallet, day, lang: isLang(lang) ? lang : null };
+}
+
+export function proofHash(wallet: string, day?: number | null, lang?: Lang | null): string {
+  return `#/t/${wallet}${day !== undefined && day !== null ? `/${day}` : ''}${lang ? `?lang=${lang}` : ''}`;
+}
+
+/** Solana Explorer page for an account on the backend's cluster (localnet → custom RPC URL). */
+export function explorerAddressUrl(addr: string, h: { cluster: string; rpcUrl: string }): string {
+  const base = `https://explorer.solana.com/address/${addr}`;
+  if (h.cluster === 'mainnet' || h.cluster === 'mainnet-beta') return base;
+  if (h.cluster === 'devnet' || h.cluster === 'testnet') return `${base}?cluster=${h.cluster}`;
+  return `${base}?cluster=custom&customUrl=${encodeURIComponent(h.rpcUrl)}`;
+}
+
+/** A UTC day number (what the program uses) as a calendar date. */
+export function dayDate(day: number, opts: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }): string {
+  return new Date(day * 86_400_000).toLocaleDateString([], { ...opts, timeZone: 'UTC' });
+}

@@ -5,6 +5,7 @@ pillow
 numpy
 pdqhash
 anthropic>=1.7
+openai>=3.16
 pydantic>=2
 pytest
 httpx

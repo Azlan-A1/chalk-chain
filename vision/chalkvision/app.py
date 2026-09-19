@@ -22,13 +22,35 @@ log = logging.getLogger("chalkvision")
 MAX_BYTES = 15 * 1024 * 1024
 
 
-def engine_name() -> str:
+API_KEYS = {"claude": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
+
+
+def engines() -> list[str]:
+    """Model engines to try, in order; an empty list means mock.
+
+    The preferred provider (CHALK_VISION_PROVIDER, default claude) goes first and the other
+    one, if its key is set, is the backup. CHALK_VISION_MODE=claude|openai also picks it.
+    """
     mode = os.environ.get("CHALK_VISION_MODE", "auto").lower()
     if mode == "mock":
-        return "mock"
-    if mode in ("claude", "auto") and os.environ.get("ANTHROPIC_API_KEY"):
-        return "claude"
-    return "mock"
+        return []
+    preferred = mode if mode in API_KEYS else os.environ.get("CHALK_VISION_PROVIDER", "claude").lower()
+    order = ["openai", "claude"] if preferred == "openai" else ["claude", "openai"]
+    return [e for e in order if os.environ.get(API_KEYS[e])]
+
+
+def engine_name() -> str:
+    chain = engines()
+    return chain[0] if chain else "mock"
+
+
+def _reader(engine: str):
+    # Imported lazily so mock mode needs neither SDK nor key.
+    if engine == "openai":
+        from .openai_engine import read_board
+    else:
+        from .claude import read_board
+    return read_board
 
 
 app = FastAPI(title="Chalk Chain vision")
@@ -37,7 +59,7 @@ reuse_index = ReuseIndex()
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "engine": engine_name()}
+    return {"ok": True, "engine": engine_name(), "engines": engines()}
 
 
 def _json_list(raw: str, field: str) -> list:
@@ -81,23 +103,26 @@ async def verify(
     sha = hashlib.sha256(data).digest()
     candidates, decoys = words.build_candidates(exp, prior_flat, sha, lang)
 
-    engine = engine_name()
-    screen_hint = False
-    notes = ""
-    if engine == "claude":
-        from .claude import read_board  # imported lazily so mock mode needs no API key
-
+    chain = engines()
+    engine = "mock"
+    reading = None
+    failures = []
+    for name in chain:
         try:
-            reading = read_board(img, candidates)
-            seen = {words.norm(w) for w in reading.words_on_board}
-            people, screen_hint, notes = reading.people, reading.looks_like_screen, reading.notes
-        except Exception as e:  # noqa: BLE001 - any model/transport failure
-            log.warning("claude engine failed: %s", e)
-            if os.environ.get("CHALK_VISION_FALLBACK", "").lower() != "mock":
-                raise HTTPException(502, f"vision model failed: {e}")
-            engine = "mock-fallback"
-            seen, people, screen_hint, notes = _mock_reading(exp, prior_flat)
+            reading = _reader(name)(img, candidates)
+            engine = name
+            break
+        except Exception as e:  # noqa: BLE001 - any model/transport failure; try the next engine
+            log.warning("%s engine failed: %s", name, e)
+            failures.append(f"{name}: {e}")
+    if reading is not None:
+        seen = {words.norm(w) for w in reading.words_on_board}
+        people, screen_hint, notes = reading.people, reading.looks_like_screen, reading.notes
     else:
+        if chain and os.environ.get("CHALK_VISION_FALLBACK", "").lower() != "mock":
+            raise HTTPException(502, f"vision model failed: {'; '.join(failures)}")
+        if chain:
+            engine = "mock-fallback"
         seen, people, screen_hint, notes = _mock_reading(exp, prior_flat)
 
     words_found = [w in seen for w in exp]

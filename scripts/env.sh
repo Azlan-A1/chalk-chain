@@ -12,6 +12,9 @@ PROGRAM_KEYPAIR="$PROGRAM_DIR/target/deploy/chalk_chain-keypair.json"
 RUN_DIR="$ROOT/.run"   # pid files and logs (gitignored)
 mkdir -p "$RUN_DIR"
 
+# Local secrets such as ANTHROPIC_API_KEY live in the gitignored .env at the repo root.
+if [[ -f "$ROOT/.env" ]]; then set -a; source "$ROOT/.env"; set +a; fi
+
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 

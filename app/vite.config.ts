@@ -9,7 +9,8 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const target = env.BACKEND_PROXY_TARGET || 'http://localhost:8787';
-  const proxy = { '/api': { target, changeOrigin: true, rewrite: (p: string) => p.replace(/^\/api/, '') } };
+  // xfwd forwards each phone's IP so the backend rate-limits phones separately.
+  const proxy = { '/api': { target, changeOrigin: true, xfwd: true, rewrite: (p: string) => p.replace(/^\/api/, '') } };
   return {
     plugins: [react(), ...(env.VITE_HTTPS === '1' ? [basicSsl()] : [])],
     server: { port: 5173, proxy },

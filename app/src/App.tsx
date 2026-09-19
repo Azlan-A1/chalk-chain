@@ -5,7 +5,9 @@ import { CheckIn } from './CheckIn.tsx';
 import { loadBackend, type Ctx } from './flow.ts';
 import { Home } from './Home.tsx';
 import { forgetTeacher, loadTeacherSigner } from './key.ts';
-import { num, slotsMsLeft, formatCountdown } from './logic.ts';
+import { num, parseRoute, slotsMsLeft, formatCountdown } from './logic.ts';
+import { clearPhotos, purgeOldPhotos } from './photos.ts';
+import { Proof, BadProofLink } from './Proof.tsx';
 import { Setup } from './Setup.tsx';
 import { clearAll, loadSettings, saveSettings, type Settings } from './storage.ts';
 import { ErrorBox, errorText, Spinner, useNow } from './ui.tsx';
@@ -13,6 +15,20 @@ import { ErrorBox, errorText, Spinner, useNow } from './ui.tsx';
 type Base = Omit<Ctx, 'lang' | 'dayNum'>;
 
 const POLL_MS = 4000;
+
+/** #/t/<wallet>[/<day>] is the public proof page (no teacher key); anything else is the teacher app. */
+export function Root() {
+  const [hash, setHash] = useState(() => location.hash);
+  useEffect(() => {
+    const on = () => setHash(location.hash);
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  const route = parseRoute(hash);
+  if (route.t === 'proof') return <Proof key={`${route.wallet}:${route.day}`} wallet={route.wallet} day={route.day} lang={route.lang} />;
+  if (route.t === 'bad-proof') return <BadProofLink />;
+  return <App />;
+}
 
 export function App() {
   const [base, setBase] = useState<Base | null>(null);
@@ -47,6 +63,7 @@ export function App() {
 
   useEffect(() => {
     void boot();
+    void purgeOldPhotos();
   }, [boot]);
 
   const update = (s: Settings) => {
@@ -90,6 +107,7 @@ export function App() {
   async function reset() {
     if (!confirm('Forget this teacher on this phone? A new teacher will be created.')) return;
     await forgetTeacher();
+    await clearPhotos().catch(() => {});
     clearAll();
     location.reload();
   }

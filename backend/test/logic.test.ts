@@ -10,7 +10,7 @@ import {
   type SlotHashEntry,
 } from '@chalk/shared';
 import { describe, expect, it } from 'vitest';
-import { latestRollableBoundary, nextBoundary } from '../src/boundary.ts';
+import { latestRollableBoundary, nextBoundary, planRoll, type DayLike } from '../src/boundary.ts';
 import { defaultConfigArgs, parseUsdc } from '../src/defaults.ts';
 import { flagsFromVision, type VisionResult } from '../src/flags.ts';
 
@@ -90,6 +90,38 @@ describe('latestRollableBoundary', () => {
   it('nextBoundary', () => {
     expect(nextBoundary(1234n, 100n)).toBe(1300n);
     expect(nextBoundary(1200n, 100n)).toBe(1300n);
+  });
+});
+
+describe('planRoll', () => {
+  const view = { currentSlot: 1234n, interval: 100n, slotHashes: hashes(800n, 1234n) };
+  const day = (over: Partial<DayLike> = {}): DayLike => ({
+    settled: false,
+    recheckPending: false,
+    nLinks: 1,
+    lastRolledBoundary: 0n,
+    links: [{ slot: 1000n }],
+    ...over,
+  });
+
+  it('roll at the newest boundary, or why not', () => {
+    expect(planRoll(day(), view)).toEqual({ kind: 'roll', boundarySlot: 1200n });
+    expect(planRoll(null, view)).toEqual({ kind: 'missing' });
+    expect(planRoll(day({ nLinks: 0, links: [] }), view)).toEqual({ kind: 'missing' });
+    expect(planRoll(day({ settled: true }), view)).toEqual({ kind: 'settled' });
+    expect(planRoll(day({ recheckPending: true }), view)).toEqual({ kind: 'pending' });
+  });
+
+  it('wait reports the next boundary after the last link / last roll / now', () => {
+    expect(planRoll(day({ links: [{ slot: 1210n }] }), view)).toEqual({ kind: 'wait', nextBoundary: 1300n });
+    expect(planRoll(day({ lastRolledBoundary: 1200n }), view)).toEqual({ kind: 'wait', nextBoundary: 1300n });
+    expect(planRoll(day({ links: [{ slot: 1310n }] }), view)).toEqual({ kind: 'wait', nextBoundary: 1400n });
+    expect(planRoll(day(), { ...view, interval: 0n })).toEqual({ kind: 'wait', nextBoundary: null });
+  });
+
+  it('rolledFloor stands in for a roll the chain does not show yet', () => {
+    expect(planRoll(day(), view, 1200n)).toEqual({ kind: 'wait', nextBoundary: 1300n });
+    expect(planRoll(day(), view, 1100n)).toEqual({ kind: 'roll', boundarySlot: 1200n });
   });
 });
 
