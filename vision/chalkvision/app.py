@@ -22,21 +22,28 @@ log = logging.getLogger("chalkvision")
 MAX_BYTES = 15 * 1024 * 1024
 
 
-API_KEYS = {"claude": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
+# Default order: hosted models first, the local model last as an offline safety net.
+ENGINE_ORDER = ["claude", "openai", "gemini", "ollama"]
+ENABLED_BY = {
+    "claude": ("ANTHROPIC_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    "ollama": ("CHALK_OLLAMA_MODEL",),
+}
 
 
 def engines() -> list[str]:
     """Model engines to try, in order; an empty list means mock.
 
-    The preferred provider (CHALK_VISION_PROVIDER, default claude) goes first and the other
-    one, if its key is set, is the backup. CHALK_VISION_MODE=claude|openai also picks it.
+    Every engine whose key (or, for Ollama, model name) is set is tried in ENGINE_ORDER, with
+    the preferred one (CHALK_VISION_PROVIDER, or CHALK_VISION_MODE=<engine>) moved to the front.
     """
     mode = os.environ.get("CHALK_VISION_MODE", "auto").lower()
     if mode == "mock":
         return []
-    preferred = mode if mode in API_KEYS else os.environ.get("CHALK_VISION_PROVIDER", "claude").lower()
-    order = ["openai", "claude"] if preferred == "openai" else ["claude", "openai"]
-    return [e for e in order if os.environ.get(API_KEYS[e])]
+    preferred = mode if mode in ENABLED_BY else os.environ.get("CHALK_VISION_PROVIDER", "").lower()
+    order = sorted(ENGINE_ORDER, key=lambda e: e != preferred)  # stable: keeps the rest in order
+    return [e for e in order if any(os.environ.get(var) for var in ENABLED_BY[e])]
 
 
 def engine_name() -> str:
@@ -48,6 +55,10 @@ def _reader(engine: str):
     # Imported lazily so mock mode needs neither SDK nor key.
     if engine == "openai":
         from .openai_engine import read_board
+    elif engine == "gemini":
+        from .gemini_engine import read_board
+    elif engine == "ollama":
+        from .ollama_engine import read_board
     else:
         from .claude import read_board
     return read_board

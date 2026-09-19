@@ -7,7 +7,7 @@
 #   scripts/dev.sh --auto-roll  # backend cranks roll_recheck by itself (same as CHALK_AUTO_ROLL=1; keep off for e2e)
 #   VITE_HTTPS=1 scripts/dev.sh # app over HTTPS on the LAN (phone camera testing)
 #
-# Vision runs with CHALK_VISION_MODE=mock unless ANTHROPIC_API_KEY or OPENAI_API_KEY is set (then a model reads the board).
+# Vision runs with CHALK_VISION_MODE=mock unless a model is configured (API key or CHALK_OLLAMA_MODEL); see .env.example.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
@@ -26,7 +26,7 @@ RPC_URL=$(node -p 'require(process.argv[1]).rpcUrl' "$DEPLOY_JSON")
 solana -u "$RPC_URL" cluster-version >/dev/null 2>&1 || die "RPC $RPC_URL is not answering; run scripts/setup-localnet.sh"
 
 if [[ -z "${CHALK_VISION_MODE:-}" ]]; then
-  if [[ -n "${ANTHROPIC_API_KEY:-}${OPENAI_API_KEY:-}" ]]; then export CHALK_VISION_MODE=auto; else export CHALK_VISION_MODE=mock; fi
+  if [[ -n "${ANTHROPIC_API_KEY:-}${OPENAI_API_KEY:-}${GEMINI_API_KEY:-}${GOOGLE_API_KEY:-}${CHALK_OLLAMA_MODEL:-}" ]]; then export CHALK_VISION_MODE=auto; else export CHALK_VISION_MODE=mock; fi
 fi
 [[ -x "$ROOT/vision/.venv/bin/uvicorn" ]] || die "vision venv missing: cd vision && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 

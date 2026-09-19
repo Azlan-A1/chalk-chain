@@ -254,14 +254,15 @@ Response `200 application/json`:
 }
 ```
 
-`GET /health` → `{"ok": true, "engine": "claude" | "openai" | "mock", "engines": [...]}`.
-Config via env: `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY`; `CHALK_VISION_PROVIDER`
-(`claude` | `openai`, default `claude`) picks which goes first when both are set, and the other
-is tried if the first fails; `CHALK_VLM_MODEL` (default `claude-opus-5`), `CHALK_OPENAI_MODEL`
-(default `gpt-5.5`), `CHALK_VISION_MODE` (`auto` | `mock` | `claude` | `openai`),
-`CHALK_REUSE_THRESHOLD` (PDQ Hamming, default 31). `GET /health` also returns `engines`, the
-order the service will try. `engine` in `/verify` responses is `claude`, `openai`, `mock` or
-`mock-fallback`.
+`GET /health` → `{"ok": true, "engine": "claude" | "openai" | "gemini" | "ollama" | "mock", "engines": [...]}`.
+Config via env. Engines and what enables them: `claude` (`ANTHROPIC_API_KEY`), `openai`
+(`OPENAI_API_KEY`), `gemini` (`GEMINI_API_KEY` or `GOOGLE_API_KEY`), `ollama` (`CHALK_OLLAMA_MODEL`,
+a local model served by Ollama). Every enabled engine is tried in that order until one answers;
+`CHALK_VISION_PROVIDER` moves one to the front. Models: `CHALK_VLM_MODEL` (default `claude-opus-5`),
+`CHALK_OPENAI_MODEL` (`gpt-5.5`), `CHALK_GEMINI_MODEL` (`gemini-3.8-flash`). Also
+`CHALK_VISION_MODE` (`auto` | `mock` | an engine name) and `CHALK_REUSE_THRESHOLD` (PDQ Hamming,
+default 31). `GET /health` returns `engines`, the order the service will try, and `engine` in
+`/verify` responses is the engine that answered, `mock`, or `mock-fallback`.
 
 ---
 

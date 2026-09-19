@@ -6,6 +6,7 @@ numpy
 pdqhash
 anthropic>=1.7
 openai>=3.16
+google-genai>=2.24
 pydantic>=2
 pytest
 httpx

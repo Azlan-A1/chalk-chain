@@ -12,7 +12,10 @@ import synth  # noqa: E402
 from chalkvision import app as appmod  # noqa: E402
 from chalkvision.reading import BoardReading  # noqa: E402
 
-KEY_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CHALK_VISION_MODE", "CHALK_VISION_PROVIDER", "CHALK_VISION_FALLBACK")
+KEY_VARS = (
+    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "CHALK_OLLAMA_MODEL",
+    "CHALK_VISION_MODE", "CHALK_VISION_PROVIDER", "CHALK_VISION_FALLBACK",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +37,11 @@ def clean_env(monkeypatch, tmp_path):
         ({"ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o", "CHALK_VISION_PROVIDER": "openai"}, ["openai", "claude"]),
         ({"ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o", "CHALK_VISION_MODE": "openai"}, ["openai", "claude"]),
         ({"ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o", "CHALK_VISION_MODE": "mock"}, []),
+        ({"GEMINI_API_KEY": "g"}, ["gemini"]),
+        ({"GOOGLE_API_KEY": "g"}, ["gemini"]),
+        ({"CHALK_OLLAMA_MODEL": "qwen2.5vl:7b"}, ["ollama"]),
+        ({"GEMINI_API_KEY": "g", "CHALK_OLLAMA_MODEL": "m", "ANTHROPIC_API_KEY": "a"}, ["claude", "gemini", "ollama"]),
+        ({"GEMINI_API_KEY": "g", "CHALK_OLLAMA_MODEL": "m", "CHALK_VISION_PROVIDER": "ollama"}, ["ollama", "gemini"]),
     ],
 )
 def test_engine_order(monkeypatch, env, expected):
@@ -99,3 +107,30 @@ def test_decoy_seen_by_openai_fails_words(monkeypatch):
     v = verify(TestClient(appmod.app)).json()
     assert len(captured["candidates"]) == 9  # 3 expected + 6 decoys
     assert v["engine"] == "openai" and not v["words_ok"] and len(v["decoys_flagged"]) == 1
+
+
+def test_ollama_request_shape(monkeypatch):
+    from chalkvision import ollama_engine
+
+    monkeypatch.setenv("CHALK_OLLAMA_MODEL", "qwen2.5vl:7b")
+    sent = {}
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"message": {"content": json.dumps(
+                {"words_on_board": ["lion"], "people": 4, "looks_like_screen": False, "notes": ""})}}
+
+    def fake_post(url, json, timeout):
+        sent.update(url=url, body=json)
+        return Resp()
+
+    monkeypatch.setattr(ollama_engine.httpx, "post", fake_post)
+    reading = ollama_engine.read_board(synth.classroom(["lion"]), ["lion", "cup"])
+    assert reading.words_on_board == ["lion"] and reading.people == 4
+    body = sent["body"]
+    assert sent["url"].endswith("/api/chat") and body["model"] == "qwen2.5vl:7b" and body["stream"] is False
+    assert body["format"]["required"] == ["words_on_board", "people", "looks_like_screen", "notes"]
+    assert "lion, cup" in body["messages"][0]["content"] and len(body["messages"][0]["images"]) == 1

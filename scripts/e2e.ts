@@ -187,6 +187,8 @@ async function main() {
   const relayer = address(health.body.relayer);
   const vision = await fetch('http://127.0.0.1:8001/health').then((r) => r.json()).catch(() => null);
   ok(vision?.ok, `vision up (engine ${vision?.engine})`);
+  // The synthetic photos below carry no real chalk words, so a real model would fail them.
+  ok(vision?.engine === 'mock', 'vision is in mock mode (restart with CHALK_VISION_MODE=mock scripts/dev.sh --bg --no-app)');
   const { body: config } = await api('/config');
   const windowSlots = BigInt(config.windowSlots);
   const bonus = BigInt(config.bonusPerLink);

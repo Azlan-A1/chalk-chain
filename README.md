@@ -143,10 +143,12 @@ The "USDC" is a 6-decimal mint whose authority is `keys/admin.json`, not Circle'
 |---|---|---|
 | `ANTHROPIC_API_KEY` | vision | when set, Claude can read the board; put it in the gitignored `.env` (see `.env.example`) |
 | `OPENAI_API_KEY` | vision | when set, OpenAI can read the board; with both keys set, the second provider is the backup |
-| `CHALK_VISION_PROVIDER` | vision | `claude` (default) or `openai`: which provider goes first when both keys are set |
+| `GEMINI_API_KEY` | vision | free-tier Gemini key (aistudio.google.com); `CHALK_GEMINI_MODEL`, default `gemini-3.8-flash` |
+| `CHALK_OLLAMA_MODEL` | vision | local model served by Ollama, free and offline (e.g. `qwen2.5vl:7b` after `ollama pull qwen2.5vl:7b`) |
+| `CHALK_VISION_PROVIDER` | vision | `claude`, `openai`, `gemini` or `ollama`: which engine goes first; the others (if enabled) are backups, in that order |
 | `CHALK_VLM_MODEL` | vision | `claude-opus-5` |
 | `CHALK_OPENAI_MODEL` | vision | `gpt-5.5` (`CHALK_OPENAI_EFFORT`, default `low`; set it empty for non-reasoning models) |
-| `CHALK_VISION_MODE` | vision | `auto` (a model if any key is set, else mock) or `mock`. `dev.sh` defaults to `mock` without a key |
+| `CHALK_VISION_MODE` | vision | `auto` (models if any are configured, else mock) or `mock`. `dev.sh` defaults to `mock` when none are configured. `pnpm e2e` needs `mock` (it checks) |
 | `CHALK_VISION_FALLBACK` | vision | `mock` = if every model errors, answer with the mock instead of 502 (demo safety net) |
 | `CHALK_MOCK_HEADCOUNT` | vision | people count the mock reports (7) |
 | `CHALK_REUSE_THRESHOLD` | vision | PDQ Hamming distance counted as reuse (31) |
