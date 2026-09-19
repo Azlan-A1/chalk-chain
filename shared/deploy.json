@@ -1,0 +1,8 @@
+{
+  "cluster": "localnet",
+  "rpcUrl": "http://127.0.0.1:8899",
+  "programId": "5QfoP2K5HQWgmwA4YVNW8uMTccx4XHd3uFk7Ajg2xUJG",
+  "relayer": "3kRyrq1T5AXEyPVbBWNLCE9Uj2AzwZ51MkqsUvD3CT4Q",
+  "oracle": "3j5vxyQMEpzBFihXWhjTtk7FsxF5Ki9tFXQvQm7UsG5e",
+  "usdcMint": "LrHPTZNy8TMpWJHNMHbL4NuZuXVuZd3dEjRgUdFKLL8"
+}

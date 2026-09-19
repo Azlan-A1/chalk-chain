@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+pillow
+numpy
+pdqhash
+anthropic>=1.7
+pydantic>=2
+pytest
+httpx

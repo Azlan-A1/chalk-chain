@@ -9,7 +9,6 @@ pub const TEACHER_SEED: &[u8] = b"teacher";
 #[constant]
 pub const DAY_SEED: &[u8] = b"day";
 
-#[constant]
 pub const MAX_LINKS: usize = 6;
 
 pub const SLOT_HASHES_ID: Pubkey = pubkey!("SysvarS1otHashes111111111111111111111111111");

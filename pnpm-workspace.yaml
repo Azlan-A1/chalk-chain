@@ -2,3 +2,4 @@ packages:
   - shared/ts
   - backend
   - app
+  - scripts

@@ -1,0 +1,381 @@
+/**
+ * End-to-end check against a running validator + backend + vision (mock).
+ * Acts exactly like the app: teacher key signs, relayer pays via POST /relay.
+ *
+ *   scripts/setup-localnet.sh && scripts/dev.sh --bg --no-app
+ *   pnpm --filter @chalk/scripts e2e        (BACKEND=http://127.0.0.1:8787 by default)
+ */
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  address,
+  appendTransactionMessageInstructions,
+  blockhash as toBlockhash,
+  createNoopSigner,
+  createSolanaRpc,
+  createTransactionMessage,
+  generateKeyPairSigner,
+  getBase64EncodedWireTransaction,
+  partiallySignTransactionMessageWithSigners,
+  pipe,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
+  AccountRole,
+  type Address,
+  type Instruction,
+  type KeyPairSigner,
+} from '@solana/kit';
+import {
+  ERROR_CODES,
+  PASS_MASK,
+  SYSTEM_PROGRAM_ADDRESS,
+  addressBytes,
+  challenge,
+  dayFromJson,
+  dayNumber,
+  findAssociatedTokenAddress,
+  fromHex,
+  getCheckInInstruction,
+  getRecheckInInstruction,
+  getRegisterTeacherInstruction,
+  photoHash,
+  prevFor,
+  type DayJson,
+} from '@chalk/shared';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const BACKEND = (process.env.BACKEND ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+const deploy = JSON.parse(readFileSync(process.env.CHALK_DEPLOY ?? join(ROOT, 'shared/deploy.json'), 'utf8'));
+const rpc = createSolanaRpc(deploy.rpcUrl);
+const LANG = 'en';
+
+let passed = 0;
+function ok(cond: unknown, what: string): asserts cond {
+  if (!cond) throw new Error(`FAILED: ${what}`);
+  passed++;
+  console.log(`  ok  ${what}`);
+}
+const step = (s: string) => console.log(`\n== ${s}`);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Fresh scene per photo: fixed seeds would make reruns near-duplicates of earlier runs' photos.
+const rnd = () => Math.floor(Math.random() * 2 ** 31);
+
+// ---- backend client ----
+
+async function api<T = any>(path: string, init?: RequestInit): Promise<{ status: number; body: T }> {
+  const res = await fetch(`${BACKEND}${path}`, init);
+  const text = await res.text();
+  let body: any;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = text;
+  }
+  return { status: res.status, body };
+}
+const post = (path: string, json: unknown) =>
+  api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(json) });
+
+/** Same shape the app builds: v0, relayer (no-op signer) pays, teacher signs. */
+async function relayTx(instructions: Instruction[], relayer: Address) {
+  const { body: bh } = await api('/blockhash');
+  const msg = pipe(
+    createTransactionMessage({ version: 0 }),
+    (m) => setTransactionMessageFeePayerSigner(createNoopSigner(relayer), m),
+    (m) =>
+      setTransactionMessageLifetimeUsingBlockhash(
+        { blockhash: toBlockhash(bh.blockhash), lastValidBlockHeight: BigInt(bh.lastValidBlockHeight) },
+        m,
+      ),
+    (m) => appendTransactionMessageInstructions(instructions, m),
+  );
+  const tx = getBase64EncodedWireTransaction(await partiallySignTransactionMessageWithSigners(msg));
+  return post('/relay', { tx });
+}
+
+/** A real JPEG of a classroom with the words chalked on the board (vision/tests/synth.py). */
+function photo(words: string[], seed: number): Uint8Array {
+  const py = join(ROOT, 'vision/.venv/bin/python');
+  const code = [
+    'import sys, json',
+    `sys.path.insert(0, ${JSON.stringify(join(ROOT, 'vision/tests'))})`,
+    'import synth',
+    'img = synth.classroom(json.loads(sys.argv[1]), seed=int(sys.argv[2]), size=(800, 600))',
+    'sys.stdout.buffer.write(synth.jpeg(img, quality=85))',
+  ].join('\n');
+  return new Uint8Array(execFileSync(py, ['-c', code, JSON.stringify(words), String(seed)], { maxBuffer: 16 << 20 }));
+}
+
+async function verify(teacher: Address, day: number, idx: number, image: Uint8Array) {
+  const form = new FormData();
+  form.set('teacher', teacher);
+  form.set('day', String(day));
+  form.set('idx', String(idx));
+  form.set('lang', LANG);
+  form.set('image', new Blob([new Uint8Array(image)], { type: 'image/jpeg' }), 'photo.jpg');
+  return api('/verify', { method: 'POST', body: form });
+}
+
+async function getDay(teacher: Address, day: number) {
+  const { status, body } = await api<DayJson>(`/day/${teacher}/${day}?lang=${LANG}`);
+  if (status !== 200) throw new Error(`GET /day ${status}: ${JSON.stringify(body)}`);
+  return { json: body, day: dayFromJson(body) };
+}
+
+/** GET /slot, waiting until the newest SlotHashes entry is at least `minSlot`. */
+async function freshSlot(minSlot = 0n): Promise<{ slot: bigint; hash: Uint8Array }> {
+  for (let i = 0; i < 60; i++) {
+    const { body } = await api('/slot');
+    if (BigInt(body.slot) >= minSlot) return { slot: BigInt(body.slot), hash: fromHex(body.hash) };
+    await sleep(250);
+  }
+  throw new Error(`SlotHashes never reached slot ${minSlot}`);
+}
+
+async function usdcBalance(owner: Address): Promise<bigint> {
+  const [ata] = await findAssociatedTokenAddress(owner, address(deploy.usdcMint));
+  try {
+    const { value } = await rpc.getTokenAccountBalance(ata, { commitment: 'confirmed' }).send();
+    return BigInt(value.amount);
+  } catch {
+    return 0n;
+  }
+}
+
+async function register(teacher: KeyPairSigner, relayer: Address, schoolId: number) {
+  const ix = await getRegisterTeacherInstruction({
+    programAddress: deploy.programId,
+    payer: relayer,
+    teacher,
+    schoolId,
+  });
+  return relayTx([ix], relayer);
+}
+
+/** Derive words from a fresh slot, photograph them, commit via check_in or recheck_in. */
+async function commitLink(opts: {
+  teacher: KeyPairSigner;
+  relayer: Address;
+  day: number;
+  lastCommit: Uint8Array | null;
+  minSlot?: bigint;
+  image?: Uint8Array;
+  seed: number;
+}) {
+  const { teacher, relayer, day } = opts;
+  const { slot, hash } = await freshSlot(opts.minSlot ?? 0n);
+  const prev = prevFor(addressBytes(teacher.address), day, opts.lastCommit);
+  const { words } = challenge(hash, addressBytes(teacher.address), prev, LANG);
+  const image = opts.image ?? photo(words, opts.seed);
+  const args = { programAddress: deploy.programId, teacher, day, slot, photoHash: photoHash(image) };
+  const ix = opts.lastCommit
+    ? await getRecheckInInstruction(args)
+    : await getCheckInInstruction({ ...args, payer: relayer });
+  const res = await relayTx([ix], relayer);
+  return { res, words, image, slot };
+}
+
+// ---- run ----
+
+async function main() {
+  const t0 = Date.now();
+  step('backend + chain');
+  const health = await api('/health');
+  ok(health.status === 200 && health.body.ok, `GET /health ok (program ${health.body.programId})`);
+  const relayer = address(health.body.relayer);
+  const vision = await fetch('http://127.0.0.1:8001/health').then((r) => r.json()).catch(() => null);
+  ok(vision?.ok, `vision up (engine ${vision?.engine})`);
+  const { body: config } = await api('/config');
+  const windowSlots = BigInt(config.windowSlots);
+  const bonus = BigInt(config.bonusPerLink);
+  console.log(`  window ${windowSlots} slots, bonus ${bonus} base units, slot ${config.slotMs} ms`);
+  const day = dayNumber();
+
+  // ---------- happy path ----------
+  step('teacher A: register');
+  const teacherA = await generateKeyPairSigner();
+  const reg = await register(teacherA, relayer, 4242);
+  ok(reg.status === 200 && reg.body.signature, `register_teacher via /relay (${reg.status})`);
+  const t = await api(`/teacher/${teacherA.address}`);
+  ok(t.status === 200 && t.body.schoolId === 4242, 'GET /teacher shows school 4242');
+
+  step('teacher A: check_in (link 0)');
+  const link0 = await commitLink({ teacher: teacherA, relayer, day, lastCommit: null, seed: rnd() });
+  console.log(`  words: ${link0.words.join(' ')}`);
+  ok(link0.res.status === 200 && link0.res.body.signature, `check_in relayed (slotAge ${link0.res.body.slotAge})`);
+  ok(BigInt(link0.res.body.slotAge ?? 999999) <= windowSlots, 'slotAge within window_slots');
+  let d = await getDay(teacherA.address, day);
+  ok(d.day.nLinks === 1, 'Day account has 1 link');
+  ok(
+    JSON.stringify(d.json.links[0]!.wordsText) === JSON.stringify(link0.words),
+    'on-chain words == words the teacher derived',
+  );
+
+  step('teacher A: verify link 0');
+  const v0 = await verify(teacherA.address, day, 0, link0.image);
+  ok(v0.status === 200, `POST /verify 200 (${v0.status} ${v0.status !== 200 ? JSON.stringify(v0.body) : ''})`);
+  ok(v0.body.passes === true && (v0.body.flags & PASS_MASK) === PASS_MASK, `link 0 attested + passes (flags 0x${v0.body.flags.toString(16)})`);
+  d = await getDay(teacherA.address, day);
+  ok(d.day.links[0]!.passes && d.day.links[0]!.headcount === v0.body.headcount, 'on-chain link 0 flags/headcount match');
+
+  step('teacher A: re-check');
+  const rc = await post('/recheck', { teacher: teacherA.address, day });
+  ok(rc.status === 200 && rc.body.fromSlot, `trigger_recheck (from ${rc.body.fromSlot} deadline ${rc.body.deadlineSlot})`);
+  d = await getDay(teacherA.address, day);
+  ok(d.day.recheckPending, 'Day.recheckPending = true');
+  const link1 = await commitLink({
+    teacher: teacherA,
+    relayer,
+    day,
+    lastCommit: d.day.links[0]!.commit,
+    minSlot: BigInt(rc.body.fromSlot),
+    seed: rnd(),
+  });
+  console.log(`  words: ${link1.words.join(' ')}`);
+  ok(link1.res.status === 200, `recheck_in relayed (${link1.res.status} ${link1.res.status !== 200 ? JSON.stringify(link1.res.body) : ''})`);
+  d = await getDay(teacherA.address, day);
+  ok(d.day.nLinks === 2 && !d.day.recheckPending && d.day.rechecksMet === 1, 'Day has 2 links, re-check met');
+  ok(JSON.stringify(d.json.links[1]!.wordsText) === JSON.stringify(link1.words), 'link 1 words chain from link 0 commit');
+
+  const v1 = await verify(teacherA.address, day, 1, link1.image);
+  ok(v1.status === 200 && v1.body.passes === true, `link 1 attested + passes (flags 0x${v1.body.flags?.toString(16)})`);
+  ok(JSON.stringify(v1.body.prior) === JSON.stringify([link0.words]), 'vision got link 0 words as prior');
+
+  step('teacher A: settle');
+  const before = await usdcBalance(teacherA.address);
+  const st = await post('/settle', { teacher: teacherA.address, day });
+  ok(st.status === 200, `settle_day (${st.status} ${st.status !== 200 ? JSON.stringify(st.body) : ''})`);
+  ok(BigInt(st.body.amount) === 2n * bonus, `settle amount = 2 x bonus (${st.body.amount})`);
+  const after = await usdcBalance(teacherA.address);
+  ok(after - before === 2n * bonus, `teacher USDC balance +${after - before} base units`);
+  d = await getDay(teacherA.address, day);
+  ok(d.day.settled && d.day.paid === 2n * bonus, 'Day settled, paid recorded');
+  const again = await post('/settle', { teacher: teacherA.address, day });
+  ok(again.status >= 400 && again.body.code === ERROR_CODES.AlreadySettled, `second settle refused: "${again.body.error}"`);
+
+  // ---------- negative cases ----------
+  step('teacher B: stale slot -> SlotTooOld');
+  const teacherB = await generateKeyPairSigner();
+  ok((await register(teacherB, relayer, 7)).status === 200, 'teacher B registered');
+  let current = BigInt((await api('/slot')).body.currentSlot);
+  if (current <= windowSlots + 20n) {
+    console.log(`  (fresh chain at slot ${current}; waiting until slot ${windowSlots + 21n} so a stale slot exists)`);
+    while (current <= windowSlots + 20n) {
+      await sleep(2000);
+      current = BigInt((await api('/slot')).body.currentSlot);
+    }
+  }
+  const stale = current - windowSlots - 20n;
+  const staleIx = await getCheckInInstruction({
+    programAddress: deploy.programId,
+    payer: relayer,
+    teacher: teacherB,
+    day,
+    slot: stale,
+    photoHash: photoHash(link0.image),
+  });
+  const staleRes = await relayTx([staleIx], relayer);
+  ok(
+    staleRes.status === 400 && staleRes.body.code === ERROR_CODES.SlotTooOld,
+    `check_in at slot ${stale} (now ${current}) rejected with ${staleRes.body.code}: "${staleRes.body.error}"`,
+  );
+
+  step('teacher B: same image bytes as teacher A -> reuse');
+  const reused = await commitLink({ teacher: teacherB, relayer, day, lastCommit: null, image: link0.image, seed: rnd() });
+  ok(reused.res.status === 200, 'teacher B check_in with A\'s photo lands on-chain (hash is just a commitment)');
+  const vr = await verify(teacherB.address, day, 0, link0.image);
+  ok(vr.status === 200 && vr.body.reuse?.is_reuse === true, `vision flags reuse (match ${vr.body.reuse?.match_id}, exact ${vr.body.reuse?.exact_duplicate})`);
+  ok(vr.body.passes === false && (vr.body.flags & 8) === 0, `link fails: NOT_REUSED bit clear (flags 0x${vr.body.flags.toString(16)})`);
+  const stB = await post('/settle', { teacher: teacherB.address, day });
+  ok(stB.status === 200 && BigInt(stB.body.amount) === 0n, 'teacher B settles for 0');
+
+  step('relay policy: foreign program / drain attempt');
+  const teacherC = await generateKeyPairSigner();
+  const drain: Instruction = {
+    programAddress: SYSTEM_PROGRAM_ADDRESS,
+    accounts: [
+      { address: relayer, role: AccountRole.WRITABLE_SIGNER },
+      { address: teacherC.address, role: AccountRole.WRITABLE },
+    ],
+    data: (() => {
+      const b = new Uint8Array(12);
+      const v = new DataView(b.buffer);
+      v.setUint32(0, 2, true);
+      v.setBigUint64(4, 1_000_000_000n, true);
+      return b;
+    })(),
+  };
+  const regC = await getRegisterTeacherInstruction({ programAddress: deploy.programId, payer: relayer, teacher: teacherC, schoolId: 1 });
+  const drainRes = await relayTx([regC, drain], relayer);
+  ok(drainRes.status >= 400 && !drainRes.body.signature, `system transfer from relayer refused (${drainRes.status}): "${drainRes.body.error}"`);
+  const memo: Instruction = {
+    programAddress: address('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
+    accounts: [{ address: teacherC.address, role: AccountRole.READONLY_SIGNER, signer: teacherC } as any],
+    data: new TextEncoder().encode('hi'),
+  };
+  const memoRes = await relayTx([regC, memo], relayer);
+  ok(memoRes.status >= 400 && !memoRes.body.signature, `foreign program (memo) refused (${memoRes.status}): "${memoRes.body.error}"`);
+  const tC = await api(`/teacher/${teacherC.address}`);
+  ok(tC.status === 404, 'nothing from the refused transactions landed');
+
+  if (process.env.E2E_ROLL !== '0') await rollSection(relayer, day, config);
+
+  console.log(`\nALL ${passed} CHECKS PASSED in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+}
+
+function admin(...args: string[]) {
+  execFileSync('pnpm', ['--silent', '--filter', 'backend', 'admin', ...args], { cwd: ROOT, stdio: 'pipe' });
+}
+
+/** roll_recheck: temporarily a 20-slot boundary and threshold 255 (≈ always hit), then restore. */
+async function rollSection(relayer: Address, day: number, config: any) {
+  step('roll_recheck (interval 20, threshold 255; restored afterwards)');
+  admin('update-config', '--recheck-interval-slots', '20', '--recheck-threshold', '255');
+  try {
+    const teacherD = await generateKeyPairSigner();
+    ok((await register(teacherD, relayer, 9)).status === 200, 'teacher D registered');
+    const l0 = await commitLink({ teacher: teacherD, relayer, day, lastCommit: null, seed: rnd() });
+    ok(l0.res.status === 200, 'teacher D check_in');
+    let roll: any;
+    for (let i = 0; i < 80; i++) {
+      roll = await post('/roll', { teacher: teacherD.address, day });
+      if (roll.status !== 409 || roll.body.code) break;
+      await sleep(500);
+    }
+    ok(roll.status === 200 && roll.body.hit === true, `/roll at boundary ${roll.body.boundarySlot} hit (roll byte ${roll.body.roll})`);
+    const d = await getDay(teacherD.address, day);
+    ok(d.day.recheckPending && d.day.recheckFromSlot === BigInt(roll.body.boundarySlot), 'rolled re-check opens at the boundary slot');
+    const again = await post('/roll', { teacher: teacherD.address, day });
+    ok(again.status === 409, 'second /roll refused while the re-check is open');
+    const l1 = await commitLink({
+      teacher: teacherD,
+      relayer,
+      day,
+      lastCommit: d.day.links[0]!.commit,
+      minSlot: d.day.recheckFromSlot,
+      seed: rnd(),
+    });
+    ok(l1.res.status === 200, 'recheck_in answers the rolled re-check');
+  } finally {
+    admin(
+      'update-config',
+      '--recheck-interval-slots',
+      String(config.recheckIntervalSlots),
+      '--recheck-threshold',
+      String(config.recheckThreshold),
+    );
+    const { body } = await api('/config');
+    ok(
+      body.recheckIntervalSlots === String(config.recheckIntervalSlots) && body.recheckThreshold === config.recheckThreshold,
+      'config restored',
+    );
+  }
+}
+
+main().catch((e) => {
+  console.error(`\n${e instanceof Error ? e.message : e}`);
+  console.error(`(${passed} checks passed before the failure)`);
+  process.exit(1);
+});

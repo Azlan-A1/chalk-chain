@@ -1,0 +1,1575 @@
+{
+  "address": "5QfoP2K5HQWgmwA4YVNW8uMTccx4XHd3uFk7Ajg2xUJG",
+  "metadata": {
+    "name": "chalk_chain",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Chalk Chain: slot-hash-bound classroom check-ins"
+  },
+  "instructions": [
+    {
+      "name": "attest",
+      "discriminator": [
+        83,
+        148,
+        120,
+        119,
+        144,
+        139,
+        117,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "teacher"
+        },
+        {
+          "name": "day_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "arg",
+                "path": "day"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "day",
+          "type": "u32"
+        },
+        {
+          "name": "idx",
+          "type": "u8"
+        },
+        {
+          "name": "flags",
+          "type": "u8"
+        },
+        {
+          "name": "headcount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "check_in",
+      "discriminator": [
+        209,
+        253,
+        4,
+        217,
+        250,
+        241,
+        207,
+        50
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "teacher",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "teacher_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  101,
+                  97,
+                  99,
+                  104,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              }
+            ]
+          }
+        },
+        {
+          "name": "day_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "arg",
+                "path": "day"
+              }
+            ]
+          }
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "day",
+          "type": "u32"
+        },
+        {
+          "name": "slot",
+          "type": "u64"
+        },
+        {
+          "name": "photo_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "init_config",
+      "discriminator": [
+        23,
+        235,
+        115,
+        232,
+        168,
+        96,
+        1,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault_authority"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "ConfigArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "recheck_in",
+      "discriminator": [
+        9,
+        219,
+        6,
+        115,
+        147,
+        171,
+        195,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "teacher",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "day_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "arg",
+                "path": "day"
+              }
+            ]
+          }
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "day",
+          "type": "u32"
+        },
+        {
+          "name": "slot",
+          "type": "u64"
+        },
+        {
+          "name": "photo_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "register_teacher",
+      "discriminator": [
+        32,
+        136,
+        250,
+        248,
+        49,
+        208,
+        139,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "teacher",
+          "signer": true
+        },
+        {
+          "name": "teacher_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  101,
+                  97,
+                  99,
+                  104,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "school_id",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "roll_recheck",
+      "discriminator": [
+        39,
+        76,
+        35,
+        246,
+        129,
+        199,
+        55,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "cranker",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "teacher"
+        },
+        {
+          "name": "day_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "arg",
+                "path": "day"
+              }
+            ]
+          }
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "day",
+          "type": "u32"
+        },
+        {
+          "name": "boundary_slot",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_day",
+      "discriminator": [
+        132,
+        99,
+        7,
+        227,
+        59,
+        221,
+        234,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "teacher"
+        },
+        {
+          "name": "teacher_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  101,
+                  97,
+                  99,
+                  104,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              }
+            ]
+          }
+        },
+        {
+          "name": "day_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "arg",
+                "path": "day"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault_authority"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "teacher_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "day",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "trigger_recheck",
+      "discriminator": [
+        26,
+        134,
+        171,
+        203,
+        241,
+        202,
+        231,
+        245
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "teacher"
+        },
+        {
+          "name": "day_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "teacher"
+              },
+              {
+                "kind": "arg",
+                "path": "day"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "day",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "update_config",
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "ConfigArgs"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Day",
+      "discriminator": [
+        132,
+        133,
+        176,
+        230,
+        205,
+        147,
+        21,
+        51
+      ]
+    },
+    {
+      "name": "Teacher",
+      "discriminator": [
+        223,
+        31,
+        101,
+        80,
+        157,
+        226,
+        216,
+        113
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Attested",
+      "discriminator": [
+        184,
+        102,
+        113,
+        199,
+        220,
+        197,
+        96,
+        50
+      ]
+    },
+    {
+      "name": "CheckedIn",
+      "discriminator": [
+        211,
+        80,
+        198,
+        244,
+        196,
+        84,
+        212,
+        150
+      ]
+    },
+    {
+      "name": "RecheckRolled",
+      "discriminator": [
+        112,
+        163,
+        102,
+        168,
+        67,
+        171,
+        211,
+        20
+      ]
+    },
+    {
+      "name": "RecheckStarted",
+      "discriminator": [
+        186,
+        177,
+        56,
+        244,
+        31,
+        168,
+        89,
+        145
+      ]
+    },
+    {
+      "name": "Settled",
+      "discriminator": [
+        232,
+        210,
+        40,
+        17,
+        142,
+        124,
+        145,
+        238
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "SlotNotFound",
+      "msg": "Those words expired. Get new ones."
+    },
+    {
+      "code": 6001,
+      "name": "SlotTooOld",
+      "msg": "Photo sent too late. Get new words and try again."
+    },
+    {
+      "code": 6002,
+      "name": "SlotNotIncreasing",
+      "msg": "These words are older than your last photo."
+    },
+    {
+      "code": 6003,
+      "name": "SlotBeforeRecheck",
+      "msg": "Use the new words from this re-check."
+    },
+    {
+      "code": 6004,
+      "name": "DayMismatch",
+      "msg": "Your phone's date looks wrong."
+    },
+    {
+      "code": 6005,
+      "name": "TooManyLinks",
+      "msg": "Today's chain is full."
+    },
+    {
+      "code": 6006,
+      "name": "NoRecheckPending",
+      "msg": "No re-check is open right now."
+    },
+    {
+      "code": 6007,
+      "name": "RecheckExpired",
+      "msg": "The re-check window closed."
+    },
+    {
+      "code": 6008,
+      "name": "RecheckInProgress",
+      "msg": "A re-check is still open."
+    },
+    {
+      "code": 6009,
+      "name": "NotOracle",
+      "msg": "Only the verifier can do that."
+    },
+    {
+      "code": 6010,
+      "name": "AlreadySettled",
+      "msg": "Today is already settled."
+    },
+    {
+      "code": 6011,
+      "name": "BadLinkIndex",
+      "msg": "That photo doesn't exist."
+    },
+    {
+      "code": 6012,
+      "name": "NotABoundary",
+      "msg": "Not a re-check boundary slot."
+    },
+    {
+      "code": 6013,
+      "name": "AlreadyRolled",
+      "msg": "That boundary was already rolled."
+    },
+    {
+      "code": 6014,
+      "name": "BadBoundary",
+      "msg": "Boundary slot out of range."
+    },
+    {
+      "code": 6015,
+      "name": "InvalidConfig",
+      "msg": "Invalid configuration."
+    }
+  ],
+  "types": [
+    {
+      "name": "Attested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "teacher",
+            "type": "pubkey"
+          },
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "idx",
+            "type": "u8"
+          },
+          {
+            "name": "flags",
+            "type": "u8"
+          },
+          {
+            "name": "headcount",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CheckedIn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "teacher",
+            "type": "pubkey"
+          },
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "idx",
+            "type": "u8"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "slot_age",
+            "type": "u64"
+          },
+          {
+            "name": "words",
+            "type": {
+              "array": [
+                "u8",
+                3
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "window_slots",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_window_slots",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_interval_slots",
+            "type": "u64"
+          },
+          {
+            "name": "bonus_per_link",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_threshold",
+            "type": "u8"
+          },
+          {
+            "name": "max_links",
+            "type": "u8"
+          },
+          {
+            "name": "min_headcount",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "window_slots",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_window_slots",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_interval_slots",
+            "type": "u64"
+          },
+          {
+            "name": "bonus_per_link",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_threshold",
+            "type": "u8"
+          },
+          {
+            "name": "max_links",
+            "type": "u8"
+          },
+          {
+            "name": "min_headcount",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Day",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "teacher",
+            "type": "pubkey"
+          },
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "n_links",
+            "type": "u8"
+          },
+          {
+            "name": "recheck_pending",
+            "type": "bool"
+          },
+          {
+            "name": "rechecks_met",
+            "type": "u8"
+          },
+          {
+            "name": "missed_recheck",
+            "type": "bool"
+          },
+          {
+            "name": "settled",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "recheck_from_slot",
+            "type": "u64"
+          },
+          {
+            "name": "recheck_deadline_slot",
+            "type": "u64"
+          },
+          {
+            "name": "last_rolled_boundary",
+            "type": "u64"
+          },
+          {
+            "name": "paid",
+            "type": "u64"
+          },
+          {
+            "name": "links",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Link"
+                  }
+                },
+                6
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Link",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "photo_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "commit",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "words",
+            "type": {
+              "array": [
+                "u8",
+                3
+              ]
+            }
+          },
+          {
+            "name": "flags",
+            "type": "u8"
+          },
+          {
+            "name": "headcount",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RecheckRolled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "teacher",
+            "type": "pubkey"
+          },
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "boundary_slot",
+            "type": "u64"
+          },
+          {
+            "name": "roll",
+            "type": "u8"
+          },
+          {
+            "name": "hit",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RecheckStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "teacher",
+            "type": "pubkey"
+          },
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "from_slot",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Settled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "teacher",
+            "type": "pubkey"
+          },
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "passing",
+            "type": "u8"
+          },
+          {
+            "name": "missed_recheck",
+            "type": "bool"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Teacher",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "school_id",
+            "type": "u32"
+          },
+          {
+            "name": "days_settled",
+            "type": "u32"
+          },
+          {
+            "name": "total_paid",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "ATTESTED",
+      "type": "u8",
+      "value": "128"
+    },
+    {
+      "name": "CHAIN_OK",
+      "type": "u8",
+      "value": "2"
+    },
+    {
+      "name": "CONFIG_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "DAY_SEED",
+      "type": "bytes",
+      "value": "[100, 97, 121]"
+    },
+    {
+      "name": "NOT_RECAPTURE",
+      "type": "u8",
+      "value": "4"
+    },
+    {
+      "name": "NOT_REUSED",
+      "type": "u8",
+      "value": "8"
+    },
+    {
+      "name": "PASS_MASK",
+      "type": "u8",
+      "value": "159"
+    },
+    {
+      "name": "PEOPLE_OK",
+      "type": "u8",
+      "value": "16"
+    },
+    {
+      "name": "TEACHER_SEED",
+      "type": "bytes",
+      "value": "[116, 101, 97, 99, 104, 101, 114]"
+    },
+    {
+      "name": "VAULT_SEED",
+      "type": "bytes",
+      "value": "[118, 97, 117, 108, 116]"
+    },
+    {
+      "name": "WORDS_OK",
+      "type": "u8",
+      "value": "1"
+    }
+  ]
+}
