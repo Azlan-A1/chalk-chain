@@ -13,8 +13,9 @@ export default defineConfig(({ mode }) => {
   const proxy = { '/api': { target, changeOrigin: true, xfwd: true, rewrite: (p: string) => p.replace(/^\/api/, '') } };
   return {
     plugins: [react(), ...(env.VITE_HTTPS === '1' ? [basicSsl()] : [])],
-    server: { port: 5173, proxy },
-    preview: { port: 4173, proxy },
+    // '.trycloudflare.com' lets scripts/tunnel.sh publish this dev server.
+    server: { port: 5173, proxy, allowedHosts: ['localhost', '.trycloudflare.com'] },
+    preview: { port: 4173, proxy, allowedHosts: ['localhost', '.trycloudflare.com'] },
     test: { environment: 'node', include: ['test/**/*.test.ts'] },
   };
 });

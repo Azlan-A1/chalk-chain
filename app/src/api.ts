@@ -10,6 +10,8 @@ export interface Health {
   ok: boolean;
   cluster: string;
   rpcUrl: string;
+  /** Set when the chain is reachable from outside this laptop (demo tunnel). */
+  publicRpcUrl?: string;
   programId: string;
   usdcMint: string;
   relayer: string;

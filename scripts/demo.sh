@@ -9,12 +9,13 @@
 #   scripts/demo.sh --manual-rechecks  # no automatic re-checks; use the app's Demo panel instead
 #   scripts/demo.sh --every=60 --chance=96   # re-check boundary every N slots, hit if roll < chance (0-255)
 #   scripts/demo.sh --keep-photos      # keep the vision reuse index from earlier rehearsals
+#   scripts/demo.sh --tunnel           # also publish app + chain over HTTPS (judges' own phones)
 #
 # Then: pnpm demo:cheat late|screen|edited|all, pnpm demo:cheat projector, scripts/stop.sh
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
-KEEP_CHAIN=0; AUTO=1; EVERY=60; CHANCE=96; KEEP_PHOTOS=0
+KEEP_CHAIN=0; AUTO=1; EVERY=60; CHANCE=96; KEEP_PHOTOS=0; TUNNEL=0
 for a in "$@"; do
   case "$a" in
     --keep-chain) KEEP_CHAIN=1 ;;
@@ -22,6 +23,7 @@ for a in "$@"; do
     --every=*) EVERY="${a#*=}" ;;
     --chance=*) CHANCE="${a#*=}" ;;
     --keep-photos) KEEP_PHOTOS=1 ;;
+    --tunnel) TUNNEL=1 ;;
     -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
     *) die "unknown option $a (see --help)" ;;
   esac
@@ -48,13 +50,20 @@ export VITE_ADMIN_TOKEN="$CHALK_ADMIN_TOKEN"
 
 DEV_ARGS=(--bg)
 [[ "$AUTO" == "1" ]] && DEV_ARGS+=(--auto-roll)
-VITE_HTTPS=1 bash "$ROOT/scripts/dev.sh" "${DEV_ARGS[@]}"
+# With a tunnel, Cloudflare terminates TLS and the dev server must speak plain HTTP.
+if [[ "$TUNNEL" == "1" ]]; then
+  export CHALK_TRUST_PROXY=1
+  bash "$ROOT/scripts/dev.sh" "${DEV_ARGS[@]}"
+else
+  VITE_HTTPS=1 bash "$ROOT/scripts/dev.sh" "${DEV_ARGS[@]}"
+fi
 
-for i in $(seq 1 60); do curl -skf https://localhost:5173 >/dev/null && break; sleep 0.5; done
-curl -skf https://localhost:5173 >/dev/null || die "app did not start (see $RUN_DIR/app.log)"
+APP_LOCAL=$([[ "$TUNNEL" == "1" ]] && echo "http://localhost:5173" || echo "https://localhost:5173")
+for i in $(seq 1 60); do curl -skf "$APP_LOCAL" >/dev/null && break; sleep 0.5; done
+curl -skf "$APP_LOCAL" >/dev/null || die "app did not start (see $RUN_DIR/app.log)"
 
 IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo localhost)
-PHONE_URL="https://$IP:5173"
+PHONE_URL=$([[ "$TUNNEL" == "1" ]] && echo "http://$IP:5173" || echo "https://$IP:5173")
 log "seeding last week's photo (warms up the vision model)"
 (cd "$ROOT" && DEMO_APP_URL="$PHONE_URL" pnpm --silent demo:cheat seed)
 
@@ -78,3 +87,8 @@ Demo flow
 
 Stop everything: scripts/stop.sh
 EOF
+
+if [[ "$TUNNEL" == "1" ]]; then
+  echo
+  bash "$ROOT/scripts/tunnel.sh"
+fi

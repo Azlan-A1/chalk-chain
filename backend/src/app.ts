@@ -235,6 +235,8 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
         ok: true,
         cluster: ctx.deploy.cluster,
         rpcUrl: ctx.deploy.rpcUrl,
+        // Set when the local chain is tunnelled, so Explorer links work off this laptop.
+        publicRpcUrl: process.env.CHALK_PUBLIC_RPC_URL || undefined,
         programId: ctx.programId,
         usdcMint: ctx.usdcMint,
         relayer: ctx.relayer.address,

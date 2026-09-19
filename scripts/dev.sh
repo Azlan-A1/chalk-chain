@@ -11,12 +11,15 @@
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
-BG=0; APP=1
+BG=0; APP=1; ONLY_BACKEND=0
 for a in "$@"; do
   case "$a" in
     --bg) BG=1 ;;
     --no-app) APP=0 ;;
     --auto-roll) export CHALK_AUTO_ROLL=1 ;;
+    # Restart just the backend, keeping vision and the app up: used by scripts/tunnel.sh to hand
+    # it the public RPC URL without disturbing a running demo.
+    --restart-backend) ONLY_BACKEND=1; BG=1; APP=0 ;;
     *) die "unknown option $a" ;;
   esac
 done
@@ -30,9 +33,14 @@ if [[ -z "${CHALK_VISION_MODE:-}" ]]; then
 fi
 [[ -x "$ROOT/vision/.venv/bin/uvicorn" ]] || die "vision venv missing: cd vision && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 
-for port in 8001 8787; do
-  lsof -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1 && die "port $port is busy (scripts/stop.sh?)"
-done
+if [[ "$ONLY_BACKEND" == "1" ]]; then
+  [[ -f "$RUN_DIR/backend.pid" ]] && kill "$(cat "$RUN_DIR/backend.pid")" 2>/dev/null || true
+  for _ in $(seq 1 20); do lsof -iTCP:8787 -sTCP:LISTEN >/dev/null 2>&1 || break; sleep 0.5; done
+else
+  for port in 8001 8787; do
+    lsof -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1 && die "port $port is busy (scripts/stop.sh?)"
+  done
+fi
 
 # Each service runs in its own process group so scripts/stop.sh can kill the whole tree.
 start() {
@@ -49,8 +57,10 @@ start() {
   echo $! >"$RUN_DIR/$name.pid"
 }
 
-log "vision  :8001  mode=$CHALK_VISION_MODE"
-start vision bash -c "cd '$ROOT/vision' && exec .venv/bin/uvicorn chalkvision.app:app --host 127.0.0.1 --port 8001"
+if [[ "$ONLY_BACKEND" == "0" ]]; then
+  log "vision  :8001  mode=$CHALK_VISION_MODE"
+  start vision bash -c "cd '$ROOT/vision' && exec .venv/bin/uvicorn chalkvision.app:app --host 127.0.0.1 --port 8001"
+fi
 # The backend reads CHALK_AUTO_ROLL / CHALK_AUTO_ROLL_MS / CHALK_RATE_LIMIT from this environment.
 export CHALK_AUTO_ROLL="${CHALK_AUTO_ROLL:-0}"
 [[ -n "${CHALK_AUTO_ROLL_MS:-}" ]] && export CHALK_AUTO_ROLL_MS
@@ -69,7 +79,7 @@ for i in $(seq 1 40); do
   curl -sf http://127.0.0.1:8001/health >/dev/null && curl -sf http://127.0.0.1:8787/health >/dev/null && break
   sleep 0.5
 done
-curl -sf http://127.0.0.1:8001/health >/dev/null || die "vision did not start (see $RUN_DIR/vision.log)"
+[[ "$ONLY_BACKEND" == "1" ]] || curl -sf http://127.0.0.1:8001/health >/dev/null || die "vision did not start (see $RUN_DIR/vision.log)"
 curl -sf http://127.0.0.1:8787/health >/dev/null || die "backend did not start (see $RUN_DIR/backend.log)"
 log "health: vision $(curl -s http://127.0.0.1:8001/health)"
 log "health: backend $(curl -s http://127.0.0.1:8787/health)"

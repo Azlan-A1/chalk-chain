@@ -205,11 +205,13 @@ export function proofHash(wallet: string, day?: number | null, lang?: Lang | nul
 }
 
 /** Solana Explorer page for an account on the backend's cluster (localnet → custom RPC URL). */
-export function explorerAddressUrl(addr: string, h: { cluster: string; rpcUrl: string }): string {
+export function explorerAddressUrl(addr: string, h: { cluster: string; rpcUrl: string; publicRpcUrl?: string }): string {
   const base = `https://explorer.solana.com/address/${addr}`;
   if (h.cluster === 'mainnet' || h.cluster === 'mainnet-beta') return base;
   if (h.cluster === 'devnet' || h.cluster === 'testnet') return `${base}?cluster=${h.cluster}`;
-  return `${base}?cluster=custom&customUrl=${encodeURIComponent(h.rpcUrl)}`;
+  // A localnet URL only resolves on the machine running the validator; the demo tunnel publishes
+  // one that anybody's phone can reach, so prefer it when there is one.
+  return `${base}?cluster=custom&customUrl=${encodeURIComponent(h.publicRpcUrl || h.rpcUrl)}`;
 }
 
 /** A UTC day number (what the program uses) as a calendar date. */

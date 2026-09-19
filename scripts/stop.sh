@@ -16,3 +16,5 @@ for name in "${names[@]}"; do
   fi
   rm -f "$f"
 done
+
+bash "$(dirname "$0")/tunnel.sh" --stop >/dev/null 2>&1 || true
