@@ -9,13 +9,18 @@ export function parseUsdc(s: string): bigint {
 }
 
 /** Default ConfigArgs: 90 s check-in window, 180 s re-check window, 120 s boundary spacing. */
+/** SlotHashes holds 512 entries; the program refuses a longer window because a challenge slot
+ *  older than that cannot be looked up. At devnet's ~166 ms slots, 512 slots is only ~85 s. */
+export const MAX_WINDOW_SLOTS = 450n;
+
 export function defaultConfigArgs(oracle: Address, slotMs: number): ConfigArgs {
   const slots = (ms: number) => BigInt(Math.ceil(ms / slotMs));
+  const capped = (ms: number) => (slots(ms) > MAX_WINDOW_SLOTS ? MAX_WINDOW_SLOTS : slots(ms));
   return {
     oracle,
     // 150 s: a real run on a phone sealed in 70 s, and a judge picking the moment plus writing
     // three words on a whiteboard needs the headroom.
-    windowSlots: slots(150_000),
+    windowSlots: capped(150_000),
     recheckWindowSlots: slots(180_000),
     recheckIntervalSlots: slots(120_000),
     bonusPerLink: 600_000n,

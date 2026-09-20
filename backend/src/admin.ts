@@ -223,6 +223,13 @@ async function initConfig() {
   const slotMs = opts['slot-ms'] ? Number(opts['slot-ms']) : await measureSlotMs(rpc);
   const args = withOverrides(defaultConfigArgs(oracle.address, slotMs));
   console.log(`slot time ${slotMs} ms`);
+  const wantedWindow = Math.ceil(150_000 / slotMs);
+  if (BigInt(wantedWindow) > args.windowSlots) {
+    console.log(
+      `window capped at ${args.windowSlots} slots (~${Math.round((Number(args.windowSlots) * slotMs) / 1000)} s): ` +
+        `SlotHashes only keeps 512 slots, so a longer window could not be proven`,
+    );
+  }
   printArgs(args);
   const ix = await getInitConfigInstruction({ programAddress: programId, admin, usdcMint, args });
   const landed = await sendInstructions(rpc, admin, [ix]);

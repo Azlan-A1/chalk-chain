@@ -57,6 +57,7 @@ fn apply_args(cfg: &mut Config, args: &ConfigArgs) -> Result<()> {
         args.max_links >= 1
             && args.max_links as usize <= MAX_LINKS
             && args.window_slots > 0
+            && args.window_slots <= MAX_WINDOW_SLOTS
             && args.recheck_window_slots > 0
             && args.recheck_interval_slots > 0,
         ChalkError::InvalidConfig

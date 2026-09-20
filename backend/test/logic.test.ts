@@ -11,7 +11,7 @@ import {
 } from '@chalk/shared';
 import { describe, expect, it } from 'vitest';
 import { latestRollableBoundary, nextBoundary, planRoll, type DayLike } from '../src/boundary.ts';
-import { defaultConfigArgs, parseUsdc } from '../src/defaults.ts';
+import { MAX_WINDOW_SLOTS, defaultConfigArgs, parseUsdc } from '../src/defaults.ts';
 import { flagsFromVision, type VisionResult } from '../src/flags.ts';
 
 const good: VisionResult = {
@@ -132,6 +132,15 @@ describe('admin defaults', () => {
     expect(parseUsdc('0.000001')).toBe(1n);
     expect(() => parseUsdc('1.0000001')).toThrow();
     expect(() => parseUsdc('-1')).toThrow();
+  });
+
+  it('caps the window at what SlotHashes can prove on a fast chain', () => {
+    // devnet measured ~166 ms/slot: 150 s would be 904 slots, but only 512 are retained.
+    const fast = defaultConfigArgs(address('11111111111111111111111111111111'), 166);
+    expect(fast.windowSlots).toBe(MAX_WINDOW_SLOTS);
+    expect(fast.windowSlots).toBeLessThan(512n);
+    // a slower chain keeps the full 150 s
+    expect(defaultConfigArgs(address('11111111111111111111111111111111'), 470).windowSlots).toBe(320n);
   });
 
   it('defaultConfigArgs at 400 ms slots', () => {
