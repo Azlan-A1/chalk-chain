@@ -180,8 +180,10 @@ The "USDC" is a 6-decimal mint whose authority is `keys/admin.json`, not Circle'
   challenge slot (default 150 s ÷ measured slot time, about 330 slots at 450 ms, capped at 450 slots
   because SlotHashes only keeps 512). For a slow demo, widen it:
   `pnpm --filter backend admin update-config --window-slots 400`. Check the current values with `admin status`.
-- **Slot time.** `init-config` measures slot time from `getBlockTime`. It is about 400–460 ms on
-  solana-test-validator and devnet, but Surfpool reports 1 slot/s, so the defaults would be wrong there.
+- **Slot time.** Measured from `getRecentPerformanceSamples` (slots per wall-clock second), falling
+  back to watching `getSlot` for 2 s on a chain younger than one sample period. Do NOT use
+  `getBlockTime`: solana-test-validator estimates a flat 1 s per slot while really producing one
+  every ~470 ms, which made the app show a window twice as long as the program allowed.
 - **Re-check never rolls.** `/roll` returns 409 with `nextBoundary` until a multiple of
   `recheck_interval_slots` has passed after the last photo. For demos, use *Trigger re-check*, or run
   `admin update-config --recheck-interval-slots 20 --recheck-threshold 255`. To have them happen on
