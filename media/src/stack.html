@@ -1,0 +1,42 @@
+<link rel="stylesheet" href="slide.css">
+<style>
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; flex: 1; align-content: center; margin-top: 26px; }
+  .panel { background: #16201B; border: 1px solid #27332C; border-radius: 14px; padding: 28px 30px; }
+  .panel h2 { font-size: 26px; margin-bottom: 14px; }
+  .panel h2 small { font-size: 16px; color: #7FC6A0; letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 6px; font-family: 'Public Sans'; font-weight: 600; }
+  ul { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+  li { font-size: 19px; line-height: 1.4; color: #B9C6BE; padding-left: 20px; position: relative; }
+  li::before { content: '·'; position: absolute; left: 4px; color: #7FC6A0; font-size: 22px; line-height: 1; }
+  li b { color: #E9EEE9; font-weight: 600; }
+  .tested { display: flex; gap: 16px; margin-top: 26px; }
+  .tested div { background: rgba(127,198,160,.12); color: #CFE6D9; border-radius: 10px; padding: 14px 20px; font-size: 19px; }
+  .tested b { color: #F1C84B; }
+</style>
+<div class="eyebrow">What runs where</div>
+<h1 style="font-size:58px;margin-top:12px">The chain does the part<br><span class="accent">a server can't be trusted with.</span></h1>
+<div class="cols">
+  <div class="panel">
+    <h2><small>On Solana — Anchor program</small>Rules nobody can bend</h2>
+    <ul>
+      <li><b>Freshness:</b> reads the chain's own recent block hashes and rejects a photo sealed too late</li>
+      <li><b>The chain of words:</b> each re-check's words derive from the previous photo's record</li>
+      <li><b>Surprise re-checks:</b> opened by a future block hash, crankable by anyone</li>
+      <li><b>Payment:</b> USDC per verified photo from a program-owned vault</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h2><small>Off-chain — judgement and comfort</small>Everything else</h2>
+    <ul>
+      <li><b>Photo checks:</b> a model transcribes the board; hashing catches reused photos</li>
+      <li><b>Relayer:</b> pays transaction fees so teachers never hold crypto</li>
+      <li><b>App:</b> installable web app, works on a cheap Android phone</li>
+      <li><b>Proof page:</b> a public link for parents, head teachers and donors</li>
+    </ul>
+  </div>
+</div>
+<div class="tested">
+  <div><b>174</b> unit tests</div>
+  <div><b>40/40</b> end-to-end checks on a real validator</div>
+  <div><b>3/3</b> staged cheats rejected</div>
+  <div>Verified on a <b>real whiteboard</b>, through a phone camera</div>
+</div>

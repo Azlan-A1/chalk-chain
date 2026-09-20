@@ -1,0 +1,27 @@
+<link rel="stylesheet" href="slide.css">
+<style>
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; flex: 1; align-content: center; margin-top: 30px; }
+  .step { background: #16201B; border: 1px solid #27332C; border-radius: 14px; padding: 26px 24px; display: flex; flex-direction: column; gap: 12px; position: relative; }
+  .n { font-family: 'Cabin Sketch', cursive; font-size: 40px; color: #F1C84B; line-height: 1; }
+  .step h2 { font-size: 24px; font-weight: 700; }
+  .step p { font-size: 18px; line-height: 1.45; color: #AEBDB4; flex: 1; }
+  .where { font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: #7FC6A0; font-weight: 600; }
+  .arrow { position: absolute; right: -16px; top: 50%; font-size: 22px; color: #3A4A41; }
+  .rail { display: flex; gap: 12px; margin-top: 30px; font-size: 18px; color: #8D9B93; }
+  .rail div { background: #16201B; border: 1px solid #27332C; border-radius: 999px; padding: 10px 20px; }
+</style>
+<div class="eyebrow">How one check-in works</div>
+<h1 style="font-size:58px;margin-top:12px">Chalk. Photograph. <span class="accent">Get paid.</span></h1>
+<div class="flow">
+  <div class="step"><div class="n">1</div><h2>Get the words</h2><p>The app turns the newest Solana block hash into three words, in English or Kiswahili.</p><div class="where">Phone</div><div class="arrow">→</div></div>
+  <div class="step"><div class="n">2</div><h2>Chalk them</h2><p>The teacher writes the words on the board; a student photographs the class.</p><div class="where">Classroom</div><div class="arrow">→</div></div>
+  <div class="step"><div class="n">3</div><h2>Seal it</h2><p>The program checks the words are still fresh — under 150 seconds old — and stores the photo's fingerprint.</p><div class="where">Solana program</div><div class="arrow">→</div></div>
+  <div class="step"><div class="n">4</div><h2>Check the photo</h2><p>A model reads the board, counts people, and flags screens or photos seen before.</p><div class="where">Vision service</div><div class="arrow">→</div></div>
+  <div class="step"><div class="n">5</div><h2>Pay the day</h2><p>Each verified photo earns a USDC bonus from a program-owned vault, publicly auditable.</p><div class="where">Solana program</div></div>
+</div>
+<div class="rail">
+  <div>Teachers never see a wallet</div>
+  <div>No transaction fees for them</div>
+  <div>Surprise re-checks extend the chain</div>
+  <div>Anyone can verify the day</div>
+</div>

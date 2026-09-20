@@ -21,10 +21,15 @@ def classroom(words: list[str], seed: int = 0, size: tuple[int, int] = (1280, 96
     bx1, by1 = w - int(rng.integers(40, 200)), by0 + int(h * 0.5)
     d.rectangle((bx0 - 12, by0 - 12, bx1 + 12, by1 + 12), fill=(120, 90, 60))
     d.rectangle((bx0, by0, bx1, by1), fill=(28, 68, 44))
-    y = by0 + 30
+    # Fit every line inside the board: a full chain is 6 lines of 3 words.
+    board_h = by1 - by0
+    lines = max(1, len(words))
+    step = board_h / (lines + 0.4)
+    size = max(18, min(80, int(step * 0.68)))
+    y = by0 + int(step * 0.2)
     for word in words:
-        d.text((bx0 + 40 + int(rng.integers(0, 120)), y), word, fill=(240, 240, 235), font=font(80))
-        y += 110
+        d.text((bx0 + 40 + int(rng.integers(0, 120)), y), word, fill=(240, 240, 235), font=font(size))
+        y += step
     for _ in range(int(rng.integers(4, 9))):
         cx, cy = int(rng.integers(0, w)), int(rng.integers(by1 + 40, h))
         col = tuple(int(c) for c in rng.integers(0, 255, 3))

@@ -90,7 +90,7 @@ export function photo(words: string[], seed: number): Uint8Array {
     'import sys, json',
     `sys.path.insert(0, ${JSON.stringify(join(ROOT, 'vision/tests'))})`,
     'import synth',
-    'img = synth.classroom(json.loads(sys.argv[1]), seed=int(sys.argv[2]), size=(800, 600))',
+    'img = synth.classroom(json.loads(sys.argv[1]), seed=int(sys.argv[2]), size=(1200, 900))',
     'sys.stdout.buffer.write(synth.jpeg(img, quality=85))',
   ].join('\n');
   return new Uint8Array(execFileSync(py, ['-c', code, JSON.stringify(words), String(seed)], { maxBuffer: 16 << 20 }));
@@ -150,13 +150,15 @@ export async function commitLink(opts: {
   lastCommit: Uint8Array | null;
   minSlot?: bigint;
   image?: Uint8Array;
+  /** Build the photo once the words are known, e.g. to draw the whole chain on the board. */
+  imageFor?: (words: string[]) => Uint8Array;
   seed: number;
 }) {
   const { teacher, relayer, day } = opts;
   const { slot, hash } = await freshSlot(opts.minSlot ?? 0n);
   const prev = prevFor(addressBytes(teacher.address), day, opts.lastCommit);
   const { words } = challenge(hash, addressBytes(teacher.address), prev, LANG);
-  const image = opts.image ?? photo(words, opts.seed);
+  const image = opts.image ?? opts.imageFor?.(words) ?? photo(words, opts.seed);
   const args = { programAddress: deploy.programId, teacher, day, slot, photoHash: photoHash(image) };
   const ix = opts.lastCommit
     ? await getRecheckInInstruction(args)

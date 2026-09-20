@@ -1,0 +1,38 @@
+<link rel="stylesheet" href="slide.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; flex: 1; align-content: center; margin-top: 34px; }
+  .card { background: #16201B; border: 1px solid #27332C; border-radius: 14px; padding: 30px 32px; display: flex; flex-direction: column; gap: 16px; }
+  .card h2 { font-size: 29px; font-weight: 700; }
+  .card p { font-size: 20px; line-height: 1.5; color: #AEBDB4; flex: 1; }
+  .who { font-size: 16px; letter-spacing: .12em; text-transform: uppercase; color: #7E8E85; font-weight: 600; }
+  .verdict { font-size: 19px; color: #E9EEE9; border-top: 1px solid #27332C; padding-top: 16px; }
+</style>
+<div class="eyebrow">Every cheat we could think of, and what stops it</div>
+<h1 style="font-size:60px;margin-top:14px">Three ways to fake it.<br><span class="accent">Three ways it fails.</span></h1>
+<div class="grid">
+  <div class="card">
+    <div class="who">Photo taken earlier</div>
+    <h2>Sent too late</h2>
+    <p>The words come from a block only seconds old. Wait too long and the photo is stale.</p>
+    <span class="pill no">✗ Rejected on-chain</span>
+    <div class="verdict">The Solana program checks the age itself — no server involved.</div>
+  </div>
+  <div class="card">
+    <div class="who">Photo of a laptop</div>
+    <h2>A photo of a photo</h2>
+    <p>Today's words on screen, photographed off the display: bezel, glare, moiré fringes.</p>
+    <span class="pill no">✗ Not a real photo</span>
+    <div class="verdict">Caught by the photo check, which reads the board and spots screens.</div>
+  </div>
+  <div class="card">
+    <div class="who">Last week's class, edited</div>
+    <h2>AI-pasted words</h2>
+    <p>An old class photo with today's words added — and every earlier line still has to match.</p>
+    <span class="pill no">✗ Photo seen before</span>
+    <div class="verdict">Perceptual hashing recognises the old photo; the chain of words won't line up.</div>
+  </div>
+</div>
+<div class="foot" style="margin-top:34px">
+  <div>Surprise re-checks fire at times decided by a future block hash, so "show up for five minutes" fails too.</div>
+  <div><b>Chalk Chain</b></div>
+</div>

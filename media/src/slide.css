@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1600px; height: 900px; }
+body {
+  background: #101713;
+  color: #E9EEE9;
+  font-family: 'Public Sans', system-ui, sans-serif;
+  display: flex; flex-direction: column;
+  padding: 64px 72px;
+  position: relative; overflow: hidden;
+}
+body::after {            /* faint chalk dust */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(90% 70% at 15% 0%, rgba(255,255,255,.045), transparent 60%);
+}
+.eyebrow { font-size: 20px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #7FC6A0; }
+h1 { font-family: 'Cabin Sketch', cursive; font-size: 82px; font-weight: 700; line-height: 1.05; letter-spacing: .01em; }
+h1 .accent { color: #F1C84B; }
+.lede { font-size: 27px; line-height: 1.45; color: #B9C6BE; max-width: 1180px; }
+.board {
+  background: #1B3A2E; border: 14px solid #7A5A33; border-radius: 12px;
+  box-shadow: inset 0 0 120px rgba(0,0,0,.45); padding: 36px 44px;
+}
+.chalk { font-family: 'Cabin Sketch', cursive; color: #F6F4E8; }
+.spacer { flex: 1; }
+.foot { display: flex; justify-content: space-between; align-items: flex-end; font-size: 20px; color: #8D9B93; }
+.foot b { color: #E9EEE9; font-weight: 600; }
+.pill { display: inline-flex; align-self: flex-start; align-items: center; gap: 10px; border-radius: 999px; padding: 9px 20px; font-size: 21px; font-weight: 600; }
+.ok { background: rgba(127,198,160,.14); color: #7FC6A0; }
+.no { background: rgba(240,138,126,.14); color: #F08A7E; }
