@@ -7,6 +7,15 @@ attests the result on-chain, and the program pays a USDC bonus per passing photo
 
 `SPEC.md` is the contract between the parts (byte layouts, account order, error codes, HTTP routes).
 
+## Screenshots
+
+| The teacher's day, on a phone | The public proof page |
+| --- | --- |
+| <img src="media/app-phone-chain.png" width="330" alt="Chalk Chain on a phone: two check-ins with their words and check results"> | <img src="media/proof-desktop.png" width="560" alt="Public proof page showing a day's chain of words, checks and the USDC bonus paid"> |
+| A real run against a real whiteboard. The first photo's words were read correctly; the second board was deliberately written wrong, and every check that should fail does. | Anyone can open this for a teacher and day. No key, no wallet: the words, which checks passed, the payout, and a link to the day's account on Solana Explorer. |
+
+More in [`media/`](media/), including the graphics used in the pitch.
+
 ## Architecture
 
 ```
