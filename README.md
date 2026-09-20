@@ -177,7 +177,8 @@ The "USDC" is a 6-decimal mint whose authority is `keys/admin.json`, not Circle'
 ## Troubleshooting
 
 - **"Photo sent too late" (SlotTooOld, 6001).** The photo must land within `window_slots` of the
-  challenge slot (default 90 s ÷ measured slot time, about 200 slots at 450 ms). For a slow demo, widen it:
+  challenge slot (default 150 s ÷ measured slot time, about 330 slots at 450 ms, capped at 450 slots
+  because SlotHashes only keeps 512). For a slow demo, widen it:
   `pnpm --filter backend admin update-config --window-slots 400`. Check the current values with `admin status`.
 - **Slot time.** `init-config` measures slot time from `getBlockTime`. It is about 400–460 ms on
   solana-test-validator and devnet, but Surfpool reports 1 slot/s, so the defaults would be wrong there.
