@@ -35,6 +35,24 @@ pub fn link_passes(flags: u8) -> bool {
     flags & PASS_MASK == PASS_MASK
 }
 
+/// What settle_day pays, from the links' flags.
+///
+/// A re-check (any link after the first) that did not pass counts as unanswered: otherwise a
+/// teacher could dodge the "missed re-check" penalty by photographing anything at all, losing one
+/// photo's bonus instead of the day's.
+pub fn settlement(flags: &[u8], missed_recheck: bool, bonus_per_link: u64) -> (u64, bool, u8) {
+    let passing = flags.iter().filter(|f| link_passes(**f)).count() as u8;
+    let first_ok = flags.first().map(|f| link_passes(*f)).unwrap_or(false);
+    let recheck_dodged = flags.iter().skip(1).any(|f| !link_passes(*f));
+    let missed = missed_recheck || recheck_dodged;
+    let amount = if first_ok && !missed {
+        (passing as u64).saturating_mul(bonus_per_link)
+    } else {
+        0
+    };
+    (amount, missed, passing)
+}
+
 /// Binary-search raw SlotHashes sysvar data (`u64 len`, then `len` entries of
 /// `(u64 slot, [u8; 32] hash)`, newest first, i.e. slots strictly descending).
 pub fn find_slot_hash(data: &[u8], slot: u64) -> Option<[u8; 32]> {
@@ -62,6 +80,29 @@ pub fn find_slot_hash(data: &[u8], slot: u64) -> Option<[u8; 32]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settlement_pays_for_passing_links() {
+        let pass = PASS_MASK;
+        assert_eq!(settlement(&[pass], false, 600_000), (600_000, false, 1));
+        assert_eq!(settlement(&[pass, pass], false, 600_000), (1_200_000, false, 2));
+    }
+
+    #[test]
+    fn settlement_pays_nothing_without_a_first_photo_or_after_a_missed_recheck() {
+        let pass = PASS_MASK;
+        assert_eq!(settlement(&[], false, 600_000), (0, false, 0));
+        assert_eq!(settlement(&[0], false, 600_000), (0, false, 0));
+        assert_eq!(settlement(&[pass], true, 600_000), (0, true, 1));
+    }
+
+    #[test]
+    fn a_junk_answer_to_a_recheck_counts_as_missing_it() {
+        let pass = PASS_MASK;
+        // Link 1 was answered but failed its checks: the day pays nothing, exactly as if the
+        // teacher had ignored the re-check.
+        assert_eq!(settlement(&[pass, 0], false, 600_000), (0, true, 1));
+    }
 
     fn hex32(s: &str) -> [u8; 32] {
         assert_eq!(s.len(), 64);

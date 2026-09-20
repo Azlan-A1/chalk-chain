@@ -72,7 +72,10 @@ export function App() {
   };
 
   const registered = base !== null && settings.registered === base.wallet && settings.lang !== null;
-  const dayNum = dayNumber();
+  // The program checks `day` against the chain's clock: prefer what the chain says over this
+  // device's date, which may be wrong or in another timezone.
+  const [chainDay, setChainDay] = useState<number | null>(null);
+  const dayNum = chainDay ?? dayNumber();
   // Stable identity: screens key effects off ctx, and the 4 s poll re-renders App.
   const currentSlot = slotAt ? slotAt.slot + Math.floor((Date.now() - slotAt.at) / (base?.slotMs || 400)) : undefined;
   const ctx = useMemo<Ctx | null>(
@@ -98,6 +101,7 @@ export function App() {
       setDayLoaded(true);
       const s = await api.slot();
       setSlotAt({ slot: num(s.currentSlot, num(s.slot)), at: Date.now() });
+      if (typeof s.chainDay === 'number') setChainDay(s.chainDay);
       // A chain reset (scripts/demo.sh) wipes the Teacher account under an open app. Without this
       // the app keeps offering check-in and the transaction fails with a raw program error.
       if (!d) {

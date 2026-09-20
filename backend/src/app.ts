@@ -285,15 +285,37 @@ export function createApp(opts: AppOptions = {}): ChalkApp {
     return c.json({ ...configToJson(config), slotMs });
   });
 
+  // The program compares `day` against the chain's clock, not the phone's, and a phone with a
+  // wrong date would fail every check-in with DayMismatch. Cached: it only changes once a day.
+  let chainDayCache: { at: number; day: number } | null = null;
+  const chainDay = async (ctx: Ctx): Promise<number | null> => {
+    if (chainDayCache && Date.now() - chainDayCache.at < 60_000) return chainDayCache.day;
+    try {
+      const finalized = await ctx.rpc.getSlot({ commitment: 'finalized' }).send();
+      const t = await ctx.rpc.getBlockTime(finalized).send();
+      if (t === null) return null;
+      chainDayCache = { at: Date.now(), day: Math.floor(Number(t) / 86_400) };
+      return chainDayCache.day;
+    } catch {
+      return null;
+    }
+  };
+
   app.get('/slot', async (c) => {
     const ctx = await getCtx();
-    const [entries, currentSlot] = await Promise.all([
+    const [entries, currentSlot, day] = await Promise.all([
       slotHashes(ctx.rpc),
       ctx.rpc.getSlot({ commitment: 'confirmed' }).send(),
+      chainDay(ctx),
     ]);
     const top = newest(entries);
     if (!top) throw new Error('SlotHashes is empty');
-    return c.json({ slot: top.slot.toString(), hash: toHex(top.hash), currentSlot: currentSlot.toString() });
+    return c.json({
+      slot: top.slot.toString(),
+      hash: toHex(top.hash),
+      currentSlot: currentSlot.toString(),
+      chainDay: day,
+    });
   });
 
   app.get('/blockhash', async (c) => {

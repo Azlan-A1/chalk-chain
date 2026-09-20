@@ -271,7 +271,8 @@ describe('server against a fake RPC', () => {
 
   it('GET /slot returns the newest SlotHashes entry as hex', async () => {
     const res = await app.request('/slot');
-    expect(await res.json()).toEqual({ slot: '1001', hash: 'ab'.repeat(32), currentSlot: '1003' });
+    // chainDay is null here: the fake RPC has no block time.
+    expect(await res.json()).toEqual({ slot: '1001', hash: 'ab'.repeat(32), currentSlot: '1003', chainDay: null });
   });
 
   it('GET /blockhash', async () => {

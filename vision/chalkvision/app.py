@@ -84,6 +84,13 @@ def _json_list(raw: str, field: str) -> list:
     return v
 
 
+def _words(raw: str, field: str) -> list[str]:
+    v = _json_list(raw, field)
+    if not all(isinstance(w, str) for w in v):
+        raise HTTPException(400, f"{field} must be a JSON array of words")
+    return [words.norm(w) for w in v]
+
+
 def _mock_reading(expected: list[str], prior_flat: list[str]) -> BoardReading:
     """Demo stand-in: reads exactly the words it was told to expect."""
     people = int(os.environ.get("CHALK_MOCK_HEADCOUNT", 7))
@@ -108,11 +115,11 @@ def verify(  # sync on purpose: FastAPI runs it in a threadpool, so one slow mod
     try:
         img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
         img.load()
-    except (UnidentifiedImageError, OSError):
+    except Exception:  # noqa: BLE001 - truncated, hostile or exotic files are the caller's problem
         raise HTTPException(400, "image is not a readable JPEG/PNG")
 
-    exp = [words.norm(w) for w in _json_list(expected, "expected")]
-    pri = [[words.norm(w) for w in link] for link in _json_list(prior, "prior")]
+    exp = _words(expected, "expected")
+    pri = [_words(json.dumps(link), "prior") for link in _json_list(prior, "prior")]
     prior_flat = [w for link in pri for w in link]
     sha = hashlib.sha256(data).digest()
     candidates, decoys = words.build_candidates(exp, prior_flat, sha, lang)
@@ -147,7 +154,11 @@ def verify(  # sync on purpose: FastAPI runs it in a threadpool, so one slow mod
     words_ok = bool(exp) and all(words_found) and not decoys_flagged
     chain_ok = all(all(link) for link in prior_found)
 
-    score = recapture.moire_score(img)
+    try:
+        score = recapture.moire_score(img)
+    except Exception as e:  # noqa: BLE001 - a strange image must not take the service down
+        log.warning("moire scoring failed: %s", e)
+        score = 0.0
     is_recapture = score >= recapture.FLAG_AT or screen_hint
 
     reuse = reuse_index.check_and_add(photo_id, group_id, sha.hex(), pdq_hex(img))

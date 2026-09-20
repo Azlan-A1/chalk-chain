@@ -24,6 +24,8 @@ export type ConfigWire = ConfigJson & { slotMs?: number };
 type Num = number | string;
 
 export interface SlotInfo {
+  /** The chain's own day number; null when the node cannot say. */
+  chainDay?: number | null;
   slot: Num;
   hash: string;
   currentSlot: Num;
@@ -65,12 +67,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Nothing here should hang forever: a stalled request used to leave the teacher on a spinner
+ *  with no way back, mid-demo. Photo checks need the longest (a model reads the board). */
+const TIMEOUT_MS = 90_000;
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
-    res = await fetch(BACKEND_URL + path, init);
-  } catch {
+    res = await fetch(BACKEND_URL + path, { ...init, signal: abort.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new ApiError('That took too long. Check Home — your photo may already be recorded.', 0);
+    }
     throw new ApiError("Can't reach the Chalk Chain server. Check your internet and try again.", 0);
+  } finally {
+    clearTimeout(timer);
   }
   const text = await res.text();
   let body: unknown = null;

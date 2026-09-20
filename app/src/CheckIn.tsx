@@ -178,6 +178,10 @@ export function CheckIn({ ctx, onDone }: { ctx: Ctx; onDone: () => void }) {
       <main className="screen">
         {phase.photo && <img className="thumb" src={phase.photo.url} alt="Your class photo" />}
         <Spinner label="Sealing your photo…" />
+        {/* The photo bytes are already saved, so leaving here never loses them. */}
+        <button className="btn-link" onClick={onDone}>
+          Check it later from Home
+        </button>
       </main>
     );
   }

@@ -223,15 +223,9 @@ pub fn handle_settle_day(ctx: Context<SettleDay>, _day: u32) -> Result<()> {
     }
 
     let n = d.n_links as usize;
-    let passing = d.links[..n].iter().filter(|l| chain::link_passes(l.flags)).count() as u8;
-    let first_ok = n >= 1 && chain::link_passes(d.links[0].flags);
-    let amount = if first_ok && !d.missed_recheck {
-        (passing as u64)
-            .checked_mul(cfg.bonus_per_link)
-            .ok_or_else(|| error!(ChalkError::InvalidConfig))?
-    } else {
-        0
-    };
+    let flags: Vec<u8> = d.links[..n].iter().map(|l| l.flags).collect();
+    let (amount, missed, passing) = chain::settlement(&flags, d.missed_recheck, cfg.bonus_per_link);
+    d.missed_recheck = missed;
 
     if amount > 0 {
         let seeds: &[&[u8]] = &[VAULT_SEED, &[cfg.vault_bump]];
