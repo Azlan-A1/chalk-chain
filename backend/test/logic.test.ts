@@ -137,13 +137,13 @@ describe('admin defaults', () => {
   it('defaultConfigArgs at 400 ms slots', () => {
     const a = defaultConfigArgs(address('11111111111111111111111111111111'), 400);
     expect(a).toMatchObject({
-      windowSlots: 225n,
+      windowSlots: 375n, // 150 s
       recheckWindowSlots: 450n,
       recheckIntervalSlots: 300n,
       bonusPerLink: 600_000n,
       recheckThreshold: 64,
       maxLinks: 6,
-      minHeadcount: 3,
+      minHeadcount: 1,
     });
   });
 });

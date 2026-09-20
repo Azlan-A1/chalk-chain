@@ -13,12 +13,14 @@ export function defaultConfigArgs(oracle: Address, slotMs: number): ConfigArgs {
   const slots = (ms: number) => BigInt(Math.ceil(ms / slotMs));
   return {
     oracle,
-    windowSlots: slots(90_000),
+    // 150 s: a real run on a phone sealed in 70 s, and a judge picking the moment plus writing
+    // three words on a whiteboard needs the headroom.
+    windowSlots: slots(150_000),
     recheckWindowSlots: slots(180_000),
     recheckIntervalSlots: slots(120_000),
     bonusPerLink: 600_000n,
     recheckThreshold: 64,
     maxLinks: 6,
-    minHeadcount: 3,
+    minHeadcount: 1, // the photo must show someone; 3 failed empty-room rehearsals
   };
 }
