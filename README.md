@@ -1,7 +1,7 @@
 # Chalk Chain
 
 Teachers chalk 3 words derived from a live Solana slot hash on the board and photograph the class.
-A Solana program only accepts the photo's hash if it was committed within ~90 s of those words existing,
+A Solana program only accepts the photo's hash if it was committed within ~150 s of those words existing,
 and surprise re-checks extend a chain of words on the board. A vision service checks each photo, an oracle
 attests the result on-chain, and the program pays a USDC bonus per passing photo at the end of the day.
 
